@@ -34,6 +34,18 @@ const OWNER = {
   boss: "사장님"
 };
 const STATUS = { doing: "진행 중", waiting: "대기 중", done: "완료" };
+const EXEC_STATUS = {
+  requested: "실행 요청됨",
+  running: "실행 중",
+  reported: "결과 보고됨",
+  completed: "완료 보고됨"
+};
+const EXEC_TAG = {
+  requested: "▶ 실행 요청",
+  running: "▶ 실행 중",
+  reported: "📢 결과 보고",
+  completed: "📢 완료 보고"
+};
 const BLOG_STATUS = { published: "발행 완료", draft: "임시저장", hidden: "비공개" };
 const THREAD_STATUS = { posted: "게시 완료", drafting: "작성 중", hold: "보류" };
 const CAMP_STATUS = { pending: "미제출", doing: "진행 중", submitted: "제출 완료" };
@@ -226,6 +238,35 @@ function taskDetail(t) {
   return String(t.detail ?? t.description ?? t.notes ?? "");
 }
 
+/* 실행 상태 배지 */
+function execOf(t) {
+  const k = t && t.executionStatus ? String(t.executionStatus) : "";
+  return EXEC_STATUS[k] ? k : "";
+}
+
+function execTagHtml(t) {
+  const k = execOf(t);
+  if (!k) return "";
+  return `<span class="exec-tag" data-exec="${k}">${EXEC_TAG[k]}</span>`;
+}
+
+/* 상세 내용을 회의실용 1~3줄 요약으로 */
+function briefLines(text, max = 2, per = 70) {
+  return String(text || "")
+    .split("\n")
+    .map(s => s.replace(/^[\s·•\-–—*]+/, "").trim())
+    .filter(s => s && !/^\[[^\]]{1,24}\]$/.test(s))
+    .map(s => (s.length > per ? s.slice(0, per).trim() + "…" : s))
+    .slice(0, max);
+}
+
+function execRequestText(title, owner, detail) {
+  return [`▶ [업무 실행 요청] ${title}`, `담당: ${OWNER[owner] || owner}`, ...briefLines(detail, 2)].join("\n");
+}
+
+function execReportText(title, owner, detail) {
+  return [`📢 [업무 결과 보고] ${title}`, `담당: ${OWNER[owner] || owner}`, ...briefLines(detail, 3)].join("\n");
+}
 function taskCard(t) {
   const opts = Object.entries(OWNER).map(([k, v]) =>
     `<option value="${k}"${t.owner === k ? " selected" : ""}>${v}</option>`).join("");
@@ -244,6 +285,7 @@ function taskCard(t) {
       ${desc}
       <div class="task-meta">
         <select data-act="owner" data-id="${t.id}" aria-label="담당자 변경">${opts}</select>
+        ${execTagHtml(t)}
         <span class="hint">${timeAgo(t.updatedAt || t.createdAt)}</span>
         <div class="task-actions">
           ${move}
@@ -289,7 +331,11 @@ $("#tasksView").addEventListener("click", e => {
     const id = actEl.dataset.id;
     const item = ref(db, `${ROOT}/tasks/${id}`);
     if (act === "status") update(item, { status: actEl.dataset.status, updatedAt: Date.now() });
-    else if (confirm("이 업무를 삭제할까요?")) remove(item);
+    else if (confirm("이 업무를 삭제할까요?\n삭제하면 목록과 DB에서 바로 사라지며 되돌릴 수 없습니다.")) {
+      if (state.data?.tasks?.[id]) delete state.data.tasks[id];
+      remove(item);
+      renderTasks();
+    }
     return;
   }
 
@@ -1077,13 +1123,21 @@ function memoBlock(path, value, label) {
     </div>`;
 }
 
-function openTaskSheet(id, savedAt) {
+function openTaskSheet(id, savedAt, flash) {
   const t = tasksArr().find(x => x.id === id);
   if (!t) return;
   const ownerOpts = Object.entries(OWNER).map(([k, v]) =>
     `<option value="${k}"${t.owner === k ? " selected" : ""}>${v}</option>`).join("");
   const detail = taskDetail(t);
   const stamp = tsFull(t.updatedAt || t.createdAt);
+  const ex = execOf(t);
+  const exBadge = ex
+    ? `<span class="exec-badge" data-exec="${ex}">${EXEC_STATUS[ex]}${ex === "requested" ? " · 회의실에 공유됨" : ""}</span>`
+    : `<span class="exec-badge" data-exec="none">아직 실행 전</span>`;
+  const exTimes = [
+    t.requestedAt ? `실행 요청 ${tsFull(t.requestedAt)}` : "",
+    t.reportedAt ? `결과 보고 ${tsFull(t.reportedAt)}` : ""
+  ].filter(Boolean).join("  ·  ");
 
   openSheet("업무 상세", `
     <div class="sheet-field">
@@ -1103,6 +1157,19 @@ function openTaskSheet(id, savedAt) {
       ${statusChips(Object.entries(STATUS), t.status, "task-status", `data-id="${t.id}"`)}
     </div>
     <div class="sheet-sep"></div>
+    <div class="exec-panel" data-exec="${ex || "none"}">
+      <div class="exec-top">
+        ${exBadge}
+        ${flash ? `<span class="saved-flag" data-flash>${esc(flash)}</span>` : ""}
+      </div>
+      ${exTimes ? `<div class="exec-time">${esc(exTimes)}</div>` : ""}
+      <p class="exec-note">▶ 업무 실행을 누르면 편집 중인 제목·내용을 저장하면서 상태를 '진행 중'으로 바꾸고, 회의실에 실행 요청을 올립니다. 📢 결과 회의실 공유는 이 업무의 제목·담당·상세 메모를 회의실에 결과 보고로 남깁니다.</p>
+      <div class="exec-btns">
+        <button class="btn primary" data-act="task-run" data-id="${t.id}" type="button">▶ 업무 실행</button>
+        <button class="btn" data-act="task-report" data-id="${t.id}" type="button">📢 결과 회의실 공유</button>
+      </div>
+    </div>
+    <div class="sheet-sep"></div>
     <div class="sheet-field">
       <span class="sheet-label">상세 내용 · 메모</span>
       <textarea id="taskEditDetail" rows="8" placeholder="진행 상황, 다음 할 일, 체크리스트, 관련 링크를 적어 두세요." aria-label="업무 상세 내용">${esc(detail)}</textarea>
@@ -1113,8 +1180,9 @@ function openTaskSheet(id, savedAt) {
       <button class="btn primary" data-act="task-save" data-id="${t.id}" type="button">저장</button>
     </div>
     <div class="sheet-sep"></div>
-    <div class="sheet-actions" style="justify-content:flex-end">
-      <button class="mini-btn danger" data-act="task-del" data-id="${t.id}" type="button">업무 삭제</button>
+    <div class="sheet-danger">
+      <button class="btn danger block" data-act="task-del" data-id="${t.id}" type="button">🗑 업무 삭제</button>
+      <span class="sheet-hint">삭제하면 업무 목록과 DB에서 바로 사라지며 되돌릴 수 없습니다.</span>
     </div>
   `);
 
@@ -1339,13 +1407,87 @@ sheetEl.addEventListener("click", e => {
     setTimeout(() => { btn.textContent = "메모 저장"; }, 1800);
   } else if (btn.dataset.act === "task-status") {
     const v = taskEditValues();
+    const cur = tasksArr().find(x => x.id === id);
     const patch = { status: st, updatedAt: Date.now() };
     if (v && v.title) { patch.title = v.title; patch.detail = v.detail; }
+    if (st === "done" && cur && ["reported", "completed"].includes(String(cur.executionStatus || ""))) {
+      patch.executionStatus = "completed";
+    }
     if (state.data?.tasks?.[id]) Object.assign(state.data.tasks[id], patch);
     update(ref(db, `${ROOT}/tasks/${id}`), patch);
-    openTaskSheet(id);
+    renderTasks();
+    let flash = "";
+    if (st === "done") {
+      flash = patch.executionStatus === "completed"
+        ? "완료 · 회의실에 결과 보고됨"
+        : "완료로 바꿨습니다. 📢 결과 회의실 공유를 누르면 회의실에 보고됩니다.";
+    }
+    openTaskSheet(id, undefined, flash);
+  } else if (btn.dataset.act === "task-run") {
+    const v = taskEditValues();
+    const cur = tasksArr().find(x => x.id === id);
+    if (!cur) return;
+    if (v && !v.title) {
+      const titleEl = sheetEl.querySelector("#taskEditTitle");
+      if (titleEl) { titleEl.focus(); titleEl.select(); }
+      return;
+    }
+    const now = Date.now();
+    const title = v && v.title ? v.title : cur.title;
+    const detail = v ? v.detail : taskDetail(cur);
+    const patch = {
+      status: "doing",
+      executionStatus: "requested",
+      requestedAt: now,
+      updatedAt: now
+    };
+    if (v && v.title) { patch.title = title; patch.detail = detail; }
+    if (state.data?.tasks?.[id]) Object.assign(state.data.tasks[id], patch);
+    update(ref(db, `${ROOT}/tasks/${id}`), patch);
+    push(ref(db, `${ROOT}/meeting/messages`), {
+      from: "boss",
+      text: execRequestText(title, cur.owner, detail),
+      ts: now
+    });
+    meetForceScroll = true;
+    renderTasks();
+    openTaskSheet(id, now, "실행 요청됨 · 회의실에 공유됨");
+  } else if (btn.dataset.act === "task-report") {
+    const v = taskEditValues();
+    const cur = tasksArr().find(x => x.id === id);
+    if (!cur) return;
+    if (v && !v.title) {
+      const titleEl = sheetEl.querySelector("#taskEditTitle");
+      if (titleEl) { titleEl.focus(); titleEl.select(); }
+      return;
+    }
+    const now = Date.now();
+    const title = v && v.title ? v.title : cur.title;
+    const detail = v ? v.detail : taskDetail(cur);
+    const done = cur.status === "done";
+    const patch = {
+      executionStatus: done ? "completed" : "reported",
+      reportedAt: now,
+      updatedAt: now
+    };
+    if (v && v.title) { patch.title = title; patch.detail = detail; }
+    if (state.data?.tasks?.[id]) Object.assign(state.data.tasks[id], patch);
+    update(ref(db, `${ROOT}/tasks/${id}`), patch);
+    push(ref(db, `${ROOT}/meeting/messages`), {
+      from: "boss",
+      text: execReportText(title, cur.owner, detail),
+      ts: now
+    });
+    meetForceScroll = true;
+    renderTasks();
+    openTaskSheet(id, now, done ? "결과 보고 · 완료로 정리됨 · 회의실에 공유됨" : "결과 보고 · 회의실에 공유됨");
   } else if (btn.dataset.act === "task-del") {
-    if (confirm("이 업무를 삭제할까요?")) { remove(ref(db, `${ROOT}/tasks/${id}`)); closeSheet(); }
+    if (confirm("이 업무를 삭제할까요?\n삭제하면 목록과 DB에서 바로 사라지며 되돌릴 수 없습니다.")) {
+      if (state.data?.tasks?.[id]) delete state.data.tasks[id];
+      remove(ref(db, `${ROOT}/tasks/${id}`));
+      renderTasks();
+      closeSheet();
+    }
   } else if (btn.dataset.act === "thread-status") {
     if (state.data?.content?.threads?.[id]) Object.assign(state.data.content.threads[id], { status: st, updatedAt: Date.now() });
     update(ref(db, `${ROOT}/content/threads/${id}`), { status: st, updatedAt: Date.now() });
