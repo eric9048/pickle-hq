@@ -56,11 +56,27 @@ const PEOPLE = {
   robin: { name: "로빈", emoji: "🦉", role: "비서" },
   jessi: { name: "제시", emoji: "✨", role: "비서" },
   jerry: { name: "제리", emoji: "🍀", role: "비서" },
-  gemini: { name: "제미나이", emoji: "💎", role: "전략 파트너" }
+  gemini: { name: "제미나이", emoji: "💎", role: "전략 파트너" },
+  chatgpt: { name: "ChatGPT", emoji: "🤖", role: "전략 파트너" }
 };
-const PEOPLE_ORDER = ["boss", "robin", "jessi", "jerry", "gemini"];
-const SAY_KEY = "hq.meet.say.v1";
-const savedSay = localStorage.getItem(SAY_KEY);
+const PEOPLE_ORDER = ["boss", "robin", "jessi", "jerry", "gemini", "chatgpt"];
+
+/* 회의실 "누구에게 말하기" — 사장님 발언(from:"boss")에 붙는 대상입니다. */
+const TO_KEY = "hq.meet.to.v1";
+const ALL_TO = "all";
+const AUDIENCE_ORDER = [ALL_TO, "robin", "jessi", "jerry", "gemini", "chatgpt"];
+
+function savedAudience() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TO_KEY) || "null");
+    if (Array.isArray(raw)) {
+      const keys = raw.filter(k => AUDIENCE_ORDER.includes(k));
+      if (keys.includes(ALL_TO)) return new Set([ALL_TO]);
+      if (keys.length) return new Set(keys);
+    }
+  } catch (err) { /* 저장값이 깨졌으면 기본값 */ }
+  return new Set([ALL_TO]);
+}
 
 /* 제미나이 — API 키는 이 브라우저의 localStorage에만 보관합니다.
    GitHub(공개 저장소)·Firebase RTDB 어디에도 키를 쓰지 않습니다.
@@ -78,13 +94,27 @@ const GEMINI_MODELS = [
 const GEMINI_DEFAULT_MODEL = GEMINI_MODELS[0].id;
 const GEMINI_STUDIO_URL = "https://aistudio.google.com/apikey";
 
+/* ChatGPT — OpenAI 키도 제미나이와 똑같이 이 브라우저의 localStorage에만 보관합니다.
+   GitHub(공개 저장소)·Firebase RTDB 어디에도 키를 쓰지 않습니다. */
+const OKEY_KEY = "pickle_hq_openai_key";
+const OMODEL_KEY = "pickle_hq_openai_model";
+const OPENAI_MODELS = [
+  { id: "gpt-4o-mini", label: "gpt-4o-mini (기본 · 빠름 · 저렴)" },
+  { id: "gpt-4o", label: "gpt-4o (고성능 · 느림 · 비쌈)" },
+  { id: "gpt-4.1-mini", label: "gpt-4.1-mini (신형 경량)" },
+  { id: "gpt-4.1", label: "gpt-4.1 (신형 고성능)" }
+];
+const OPENAI_DEFAULT_MODEL = OPENAI_MODELS[0].id;
+const OPENAI_KEYS_URL = "https://platform.openai.com/api-keys";
+
 /* ── 2. 상태 ─────────────────────────────────────────────── */
 
 const state = {
   data: null,
   ownerFilter: "all",
   blogFilter: "all",
-  say: PEOPLE[savedSay] ? savedSay : "boss",
+  say: "boss",
+  audience: savedAudience(),
   replyTo: null,
   selectMode: false,
   picked: new Set(),
@@ -112,7 +142,9 @@ const AVATAR_VER = "20261127p";
 /* 한글 이름으로 남은 메시지·메모도 같은 캐릭터로 보이게 맞춥니다. */
 const PERSON_ALIAS = {
   "사장님": "boss", "박이만": "boss",
-  "로빈": "robin", "제시": "jessi", "제리": "jerry", "제미나이": "gemini"
+  "로빈": "robin", "제시": "jessi", "제리": "jerry", "제미나이": "gemini",
+  "ChatGPT": "chatgpt", "chatgpt": "chatgpt", "챗gpt": "chatgpt", "챗GPT": "chatgpt",
+  "챗지피티": "chatgpt", "오픈AI": "chatgpt", "OpenAI": "chatgpt"
 };
 function personKey(k) {
   const s = String(k ?? "");
@@ -130,9 +162,9 @@ function avatarHtml(key, cls = "") {
 /* 말하는 사람 칩과 담당자 필터 칩에도 같은 아바타를 붙입니다.
    (이미지가 없으면 위 avatarHtml 의 이모지 폴백이 그대로 보입니다.) */
 function paintChipAvatars() {
-  $$("#meetSay .chip[data-say]").forEach(c => {
-    const k = c.dataset.say;
-    if (!PEOPLE[k] || c.querySelector(".avatar")) return;
+  $$("#meetAudience .chip[data-to]").forEach(c => {
+    const k = c.dataset.to;
+    if (k === ALL_TO || !PEOPLE[k] || c.querySelector(".avatar")) return;
     c.innerHTML = avatarHtml(k, "xs") + `<span>${esc(PEOPLE[k].name)}</span>`;
   });
   $$("#ownerFilters .chip[data-owner]").forEach(c => {
@@ -241,6 +273,7 @@ function startBoard() {
 function renderAll() {
   renderHome();
   renderMeeting();
+  renderLounge();
   renderTasks();
   renderBlog();
   renderThreads();
@@ -725,6 +758,7 @@ function meetMessages() {
       from: v && v.from ? String(v.from) : "robin",
       text: v && v.text != null ? String(v.text) : "",
       ts: Number(v && v.ts) || 0,
+      to: v && Array.isArray(v.to) ? v.to.map(String) : [],
       replyTo: v && v.replyTo && typeof v.replyTo === "object"
         ? {
             id: v.replyTo.id != null ? String(v.replyTo.id) : "",
@@ -742,8 +776,8 @@ function renderMeeting(force) {
   renderMeetingPeople(arr);
   renderMeetingTopic();
   $("#meetSummary").textContent = arr.length
-    ? `${arr.length}개 메시지 · 참여자 5명`
-    : "참여자 5명";
+    ? `${arr.length}개 메시지 · 참여자 ${PEOPLE_ORDER.length}명`
+    : `참여자 ${PEOPLE_ORDER.length}명`;
   const mc = $("#meetMsgCount");
   if (mc) mc.textContent = arr.length;
 
@@ -762,7 +796,7 @@ function renderMeeting(force) {
 
   if (!arr.length) {
     room.innerHTML = `<div class="empty">아직 대화가 없습니다. 첫 메시지를 남겨 보세요.</div>`;
-    if (geminiBusy || geminiErr || geminiInfo) paintGeminiNote();
+    paintAiNotes();
     return;
   }
 
@@ -779,6 +813,10 @@ function renderMeeting(force) {
          </button>`
       : "";
     const picked = state.picked.has(m.id);
+    const toLabel = m.to.length ? audienceLabel(m.to) : "";
+    const toTag = toLabel && toLabel !== "모두"
+      ? `<span class="to-tag">→ ${esc(toLabel)}</span>`
+      : "";
     return `
       <div class="bubble ${esc(pk)}${mine ? " is-mine" : ""}${picked ? " is-picked" : ""}" data-id="${esc(m.id)}">
         <button class="pick" type="button" data-act="pick" data-id="${esc(m.id)}"
@@ -787,7 +825,7 @@ function renderMeeting(force) {
         ${avatarHtml(m.from)}
         <div class="bubble-body">
           <div class="bubble-top">
-            <b>${esc(p.name)}</b>
+            <b>${esc(p.name)}</b>${toTag}
             <span>${clock(m.ts)}</span>
             <div class="bubble-acts">
               <button class="bubble-act" data-act="reply" data-id="${esc(m.id)}" type="button" title="답장" aria-label="이 메시지에 답장">↩<span class="ba-txt"> 답장</span></button>
@@ -806,7 +844,7 @@ function renderMeeting(force) {
   } else if (keepTop) {
     room.scrollTop = keepTop;
   }
-  if (geminiBusy || geminiErr || geminiInfo) paintGeminiNote();
+  paintAiNotes();
 }
 
 /* 비서별 사용량 (hq/usage/{robin|jessi|jerry}) */
@@ -858,6 +896,28 @@ function donutSvg(pct, tone) {
     </span>`;
 }
 
+/* 제미나이·ChatGPT — API 키 연결 상태 카드. 누르면 키 설정 시트가 열립니다. */
+function aiPersonCard(k, on, model, attr, where) {
+  const p = PEOPLE[k];
+  const label = on ? "API 키 연결됨" : "API 키 미설정";
+  const sub2 = on ? model : "눌러서 입력";
+  const title = on
+    ? `${p.name} · ${label} · ${model} — 눌러서 키·모델 변경`
+    : `${p.name} · ${label} (눌러서 입력) — ${where} 키를 넣으면 회의실에서 답합니다`;
+  return `
+      <button class="person ${k}" type="button" ${attr} data-on="${on ? "true" : "false"}"
+              title="${esc(title)}"
+              aria-label="${esc(title)}">
+        ${avatarHtml(k)}
+        <span class="person-text">
+          <b>${esc(p.name)} <span class="live" aria-hidden="true"></span></b>
+          <small class="u-label">${esc(label)}</small>
+          <small class="u-time">${esc(sub2)}</small>
+        </span>
+        <span class="key-mark" aria-hidden="true">${on ? "🔑" : "＋"}</span>
+      </button>`;
+}
+
 function renderMeetingPeople(arr) {
   const lastBy = {};
   arr.forEach(m => { lastBy[m.from] = m.ts; });
@@ -879,27 +939,14 @@ function renderMeetingPeople(arr) {
       </div>`;
     }
 
-    /* 제미나이 — API 키 연결 상태 카드. 누르면 키 설정 시트가 열립니다. */
+    /* 제미나이 — API 키 연결 상태 카드 */
     if (k === "gemini") {
-      const on = !!geminiKey();
-      const model = geminiModel();
-      const label = on ? "API 키 연결됨" : "API 키 미설정";
-      const sub2 = on ? model : "눌러서 입력";
-      const title = on
-        ? `${p.name} · ${label} · ${model} — 눌러서 키·모델 변경`
-        : `${p.name} · ${label} (눌러서 입력) — Google AI Studio 키를 넣으면 회의실에서 답합니다`;
-      return `
-      <button class="person gemini" type="button" data-gemini="settings" data-on="${on ? "true" : "false"}"
-              title="${esc(title)}"
-              aria-label="${esc(title)}">
-        ${avatarHtml(k)}
-        <span class="person-text">
-          <b>${esc(p.name)} <span class="live" aria-hidden="true"></span></b>
-          <small class="u-label">${esc(label)}</small>
-          <small class="u-time">${esc(sub2)}</small>
-        </span>
-        <span class="key-mark" aria-hidden="true">${on ? "🔑" : "＋"}</span>
-      </button>`;
+      return aiPersonCard(k, !!geminiKey(), geminiModel(), 'data-gemini="settings"', "Google AI Studio");
+    }
+
+    /* ChatGPT — 같은 방식의 API 키 카드 */
+    if (k === "chatgpt") {
+      return aiPersonCard(k, !!chatgptKey(), chatgptModel(), 'data-chatgpt="settings"', "OpenAI Platform");
     }
 
     const u = usageData(k);
@@ -928,6 +975,8 @@ function renderMeetingPeople(arr) {
 $("#meetPeople").addEventListener("click", e => {
   const g = e.target.closest("[data-gemini]");
   if (g) { openGeminiSheet(); return; }
+  const c = e.target.closest("[data-chatgpt]");
+  if (c) { openChatgptSheet(); return; }
   const btn = e.target.closest("[data-usage]");
   if (!btn) return;
   openUsageSheet(btn.dataset.usage);
@@ -982,18 +1031,42 @@ $("#meetTopicEdit").addEventListener("click", () => {
   input.addEventListener("blur", () => finish(true));
 });
 
-function paintSay() {
-  $$("#meetSay .chip").forEach(c => c.classList.toggle("is-on", c.dataset.say === state.say));
-  $("#meetText").placeholder =
-    `${PEOPLE[state.say].name}으로 말하기 (Enter 전송 · Shift+Enter 줄바꿈)`;
+function paintAudience() {
+  const cur = audienceList();
+  $$("#meetAudience .chip[data-to]").forEach(c =>
+    c.classList.toggle("is-on", cur.includes(c.dataset.to)));
+  const ta = $("#meetText");
+  if (ta) ta.placeholder = `${audienceLabel(cur)}에게 말하기 · Enter 전송 · Shift+Enter 줄바꿈`;
 }
 
-$("#meetSay").addEventListener("click", e => {
-  const btn = e.target.closest("[data-say]");
+/* "누구에게 말하기" 칩 — 1명·여러 명 고르거나 모두 */
+function audienceList() {
+  const a = state.audience;
+  if (!a || !a.size || a.has(ALL_TO)) return [ALL_TO];
+  return AUDIENCE_ORDER.filter(k => k !== ALL_TO && a.has(k));
+}
+
+function audienceLabel(list) {
+  const arr = Array.isArray(list) ? list : audienceList();
+  if (!arr.length || arr.includes(ALL_TO)) return "모두";
+  return arr.map(k => PEOPLE[k]?.name || k).join(" · ");
+}
+
+$("#meetAudience").addEventListener("click", e => {
+  const btn = e.target.closest("[data-to]");
   if (!btn) return;
-  state.say = btn.dataset.say;
-  localStorage.setItem(SAY_KEY, state.say);
-  paintSay();
+  const k = btn.dataset.to;
+  if (k === ALL_TO) {
+    state.audience = new Set([ALL_TO]);
+  } else {
+    const next = new Set([...state.audience].filter(x => x !== ALL_TO));
+    if (next.has(k)) next.delete(k);
+    else next.add(k);
+    if (!next.size) next.add(ALL_TO);
+    state.audience = next;
+  }
+  try { localStorage.setItem(TO_KEY, JSON.stringify([...state.audience])); } catch (err) { console.error(err); }
+  paintAudience();
   $("#meetText").focus();
 });
 
@@ -1004,19 +1077,49 @@ function autoGrow(ta) {
   ta.style.overflowY = need > 140 ? "auto" : "hidden";
 }
 
-function sendMeet(forceGemini) {
+/* 발화자는 항상 사장님(boss). "누구에게 말하기" 대상에게 전달하고,
+   대상에 포함된 AI(제미나이·ChatGPT)는 자동으로 답합니다. */
+function botKey(b) {
+  return b === "gemini" ? geminiKey() : chatgptKey();
+}
+
+function openBotSheet(b) {
+  if (b === "gemini") openGeminiSheet();
+  else openChatgptSheet();
+}
+
+/* 이 메시지에 답할 AI 목록 — 선택한 대상 중 AI + @로 직접 부른 AI */
+function botsToCall(text, targets) {
+  let list = targets.includes(ALL_TO)
+    ? ["gemini", "chatgpt"]
+    : targets.filter(k => k === "gemini" || k === "chatgpt");
+  list = [...list];
+  if (/@\s*(제미나이|gemini)/i.test(text) && !list.includes("gemini")) list.push("gemini");
+  if (/@\s*(chatgpt|챗gpt|챗지피티|openai)/i.test(text) && !list.includes("chatgpt")) list.push("chatgpt");
+  return list;
+}
+
+function sendMeet() {
   const ta = $("#meetText");
   if (!db) return;
   const text = ta.value.trim();
   if (!text) return;
   const reply = state.replyTo;
-  const callGemini = !!forceGemini || wantsGemini(text);
+  const targets = audienceList();
+  const bots = botsToCall(text, targets);
+  const onlyBot = !targets.includes(ALL_TO) && targets.length === 1
+    && (targets[0] === "gemini" || targets[0] === "chatgpt");
+
   /* 방금 보낼 메시지는 따로 전달하므로, 시스템 프롬프트는 보내기 전 대화로 만듭니다. */
-  const sys = callGemini ? geminiSystemPrompt() : "";
+  const prompts = {};
+  bots.forEach(b => { prompts[b] = b === "gemini" ? geminiSystemPrompt() : chatgptSystemPrompt(); });
+
   geminiErr = "";
   geminiInfo = "";
+  chatgptErr = "";
+  chatgptInfo = "";
   meetForceScroll = true;
-  const payload = { from: state.say, text, ts: Date.now() };
+  const payload = { from: "boss", text, ts: Date.now(), to: targets };
   if (reply) payload.replyTo = { id: reply.id, from: reply.from, text: trunc(reply.text, 200) };
   push(ref(db, `${ROOT}/meeting/messages`), payload);
 
@@ -1027,7 +1130,31 @@ function sendMeet(forceGemini) {
   ta.value = "";
   autoGrow(ta);
   ta.focus();
-  if (callGemini) askGemini(ask, sys);
+
+  const called = [];
+  const skipped = [];
+  bots.forEach(b => {
+    if (botKey(b)) called.push(b);
+    else skipped.push(b);
+  });
+
+  /* 특정 AI만 골랐는데 키가 없으면 그 AI의 설정 시트를 엽니다. */
+  if (onlyBot && skipped.includes(targets[0])) {
+    openBotSheet(targets[0]);
+    return;
+  }
+  if (!called.length) {
+    if (skipped.length) toast(`${skipped.map(b => PEOPLE[b].name).join(" · ")} 키가 없어 AI 응답은 건너뛰었습니다`);
+    return;
+  }
+  if (skipped.length) {
+    toast(`${skipped.map(b => PEOPLE[b].name).join(" · ")} 키가 없어 건너뛰었습니다`);
+  }
+
+  called.forEach(b => {
+    if (b === "gemini") askGemini(ask, prompts[b]);
+    else askChatGPT(ask, prompts[b]);
+  });
 }
 
 $("#meetForm").addEventListener("submit", e => {
@@ -1227,7 +1354,7 @@ $("#meetSelDel").addEventListener("click", () => {
   toast(`${ids.length}개 메시지를 삭제했습니다`);
 });
 
-paintSay();
+paintAudience();
 
 /* ── 5-8. 제미나이 (Gemini API) ────────────────────────────────
    · API 키는 localStorage(pickle_hq_gemini_key)에만 저장
@@ -1509,13 +1636,510 @@ $("#sheet").addEventListener("click", e => {
   else if (btn.dataset.geminiAct === "clear") clearGeminiSettings();
 });
 
-$("#meetGeminiBtn").addEventListener("click", () => {
-  if (!geminiKey()) { openGeminiSheet(); return; }
-  const ta = $("#meetText");
-  const text = ta.value.trim();
-  if (text) sendMeet(true);
-  else askGemini("");
+/* ── 5-9. ChatGPT (OpenAI API) ──────────────────────────────
+   · API 키는 localStorage(pickle_hq_openai_key)에만 저장
+   · 호출은 브라우저에서 api.openai.com 으로 직접
+   · 결과는 hq/meeting/messages 에 from:"chatgpt" 로 등록            */
+
+let chatgptBusy = false;
+let chatgptErr = "";
+let chatgptInfo = "";
+
+function chatgptKey() {
+  try { return String(localStorage.getItem(OKEY_KEY) || "").trim(); }
+  catch (err) { return ""; }
+}
+
+function chatgptModel() {
+  let m = "";
+  try { m = String(localStorage.getItem(OMODEL_KEY) || ""); } catch (err) { m = ""; }
+  return OPENAI_MODELS.some(x => x.id === m) ? m : OPENAI_DEFAULT_MODEL;
+}
+
+function wantsChatGpt(text) {
+  return /chatgpt|챗gpt|챗지피티|openai/i.test(String(text || ""));
+}
+
+/* 방금 대화 맴락 — 시스템 프롬프트에 넣을 최근 12건 */
+function chatgptHistory(n = 12) {
+  return meetMessages().slice(-n)
+    .map(m => `[${PEOPLE[m.from]?.name || m.from}] ${trunc(m.text, 300)}`)
+    .join("\n");
+}
+
+function chatgptDoingTasks() {
+  const doing = tasksArr().filter(t => t.status === "doing").slice(0, 12);
+  if (!doing.length) return "(진행 중 업무 없음)";
+  return doing.map(t => `- ${t.title} (담당: ${OWNER[t.owner] || t.owner})`).join("\n");
+}
+
+function chatgptSystemPrompt() {
+  const topic = meetTopic().text || "아직 정해지지 않음";
+  return [
+    "당신은 'ChatGPT'라는 이름으로 합동 비서실 회의실에 초대된 AI입니다. 박이만 사장님과 피클 비서 3명(로빈·제시·제리), 그리고 전략 파트너 제미나이가 함께 쓰는 회의실의 여섯 번째 참여자입니다.",
+    "우리는 한 팀입니다. 로빈·제시·제리·제미나이와 같은 편에서 사장님의 일을 돕습니다. 이들은 각자 블로그 취재·글쓰기, 쇼핑커넥트·쿠팡 파트너스 제휴, 스레드 운영을 맡고 있습니다.",
+    "사장님의 사업: 네이버 블로그(eric_pm)로 자동차 전장·차량용품 정보 글을 쓰고 쇼핑커넥트·쿠팡 파트너스 제휴로 수익을 내며, 스레드(@eric_yiman)와 네이버 클립으로 유입을 만듭니다. 목표는 하루 10만원 부수입입니다.",
+    "답변 규칙:",
+    "1) 한국어로 쓰고, 사장님을 '사장님'이라고 부릅니다.",
+    "2) 이 답변은 회의실 대화창에 그대로 올라갑니다. 인사말·자기소개 없이 본론부터, 3~6문장 또는 짧은 목록으로 간결하게 씁니다.",
+    "3) 확인되지 않은 수치나 사실은 단정하지 말고 '추정'이라고 밝힙니다. 모르면 모른다고 말합니다.",
+    "4) 가족·금융 같은 민감한 사적 사정은 먼저 꺼내지 않습니다.",
+    "5) 마지막에 사장님이 바로 할 수 있는 다음 한 걸음을 한 줄로 제안합니다.",
+    "",
+    `현재 안건: ${topic}`,
+    "",
+    "최근 회의실 대화(오래된 것부터):",
+    chatgptHistory(12) || "(대화 없음)",
+    "",
+    "업무 보드 진행 중:",
+    chatgptDoingTasks()
+  ].join("\n");
+}
+
+function chatgptErrorText(status, data) {
+  const err = data && data.error ? data.error : {};
+  const code = err && err.code ? String(err.code) : "";
+  const msg = err && err.message ? String(err.message) : "";
+  if (status === 401) return "OpenAI API 키가 올바르지 않거나 취소된 키입니다 (HTTP 401). 🤖 설정에서 키를 다시 확인해 주세요.";
+  if (status === 403) return "이 키로는 호출이 허용되지 않습니다 (HTTP 403). 키 권한·결제 상태·지역 제한을 확인해 주세요.";
+  if (code === "insufficient_quota") return "이 키의 사용 한도·크레딧이 바닥났습니다 (quota). OpenAI 결제·사용량 페이지에서 크레딧을 확인해 주세요.";
+  if (status === 429) return "요청이 너무 많거나 사용 한도를 넘었습니다 (HTTP 429). 잠시 뒤 다시 시도해 주세요.";
+  if (status === 404 || code === "model_not_found") return "이 키로는 어떤 GPT 모델도 응답하지 않았습니다 (HTTP 404). 🤖 설정에서 gpt-4o-mini로 바꾸거나 새 키를 발급해 주세요.";
+  if (status === 400) return "요청이 거부되었습니다 (HTTP 400). 키와 모델을 확인해 주세요." + (msg ? ` — ${trunc(msg, 90)}` : "");
+  if (status >= 500) return `OpenAI 서버가 잠시 응답하지 않습니다 (HTTP ${status}). 잠시 뒤 다시 시도해 주세요.`;
+  return `ChatGPT 호출에 실패했습니다 (HTTP ${status}).` + (msg ? ` ${trunc(msg, 90)}` : "");
+}
+
+function chatgptNoteHtml(kind, text) {
+  const body = kind === "loading"
+    ? `<span class="typing" aria-hidden="true"><i></i><i></i><i></i></span> ${esc(text)}`
+    : esc(text);
+  return `
+    <div class="bubble chatgpt is-${kind}" data-chatgpt-note="1" role="status">
+      ${avatarHtml("chatgpt")}
+      <div class="bubble-body">
+        <div class="bubble-top"><b>ChatGPT</b><span>${kind === "loading" ? "작성 중" : "안내"}</span></div>
+        <div class="bubble-text">${body}</div>
+      </div>
+    </div>`;
+}
+
+/* 회의실 안의 임시 안내(로딩·오류) — DB에는 남기지 않습니다. */
+function paintChatgptNote() {
+  const room = $("#meetRoom");
+  if (!room) return;
+  $$('[data-chatgpt-note="1"]', room).forEach(el => el.remove());
+  if (chatgptBusy) {
+    room.insertAdjacentHTML("beforeend", chatgptNoteHtml("loading", "ChatGPT가 답변 작성 중..."));
+    room.scrollTop = room.scrollHeight;
+  } else if (chatgptErr) {
+    room.insertAdjacentHTML("beforeend", chatgptNoteHtml("error", chatgptErr));
+    room.scrollTop = room.scrollHeight;
+  } else if (chatgptInfo) {
+    room.insertAdjacentHTML("beforeend", chatgptNoteHtml("info", chatgptInfo));
+    room.scrollTop = room.scrollHeight;
+  }
+}
+
+function paintAiNotes() {
+  paintGeminiNote();
+  paintChatgptNote();
+}
+
+async function askChatGPT(userText, systemText) {
+  const key = chatgptKey();
+  if (!key) { openChatgptSheet(); return false; }
+  if (chatgptBusy) return false;
+
+  const model = chatgptModel();
+  const sys = systemText || chatgptSystemPrompt();
+  const ask = String(userText || "").trim()
+    || "지금까지의 대화와 현재 안건을 바탕으로 사장님이 바로 쓸 수 있는 핵심 의견 2~3가지와 다음 한 걸음을 제안해 주세요.";
+
+  chatgptBusy = true;
+  chatgptErr = "";
+  chatgptInfo = "";
+  paintChatgptNote();
+
+  try {
+    /* 404(이 키로 쓸 수 없는 모델)면 다음 모델로 넘어갑니다. 성공한 모델은 localStorage에 저장. */
+    const chain = [model, ...OPENAI_MODELS.map(m => m.id).filter(id => id !== model)];
+    let res = null;
+    let data = null;
+    let usedModel = model;
+    let switched = false;
+
+    for (const id of chain) {
+      res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${key}`
+        },
+        body: JSON.stringify({
+          model: id,
+          messages: [
+            { role: "system", content: sys },
+            { role: "user", content: ask }
+          ],
+          temperature: 0.7,
+          max_tokens: 1200
+        })
+      });
+      data = await res.json().catch(() => null);
+      if (res.ok) { usedModel = id; switched = id !== model; break; }
+      const code = data && data.error && data.error.code ? String(data.error.code) : "";
+      if (res.status === 404 || code === "model_not_found") continue;
+      break;
+    }
+    if (!res || !res.ok) {
+      chatgptErr = chatgptErrorText(res ? res.status : 0, data);
+      return false;
+    }
+    if (switched) {
+      try { localStorage.setItem(OMODEL_KEY, usedModel); } catch (e) { console.error(e); }
+      chatgptInfo = `${model} 모델을 이 키로는 쓸 수 없어 ${usedModel}로 답했습니다. 모델은 🤖 설정에서 바꿀 수 있습니다.`;
+    }
+
+    const choice = data && Array.isArray(data.choices) ? data.choices[0] : null;
+    const msg = choice && choice.message ? choice.message : null;
+    const raw = msg && msg.content != null ? String(msg.content) : "";
+    const text = raw.trim();
+
+    if (!text) {
+      if (msg && msg.refusal) {
+        chatgptErr = "요청이 안전 정책으로 거절되어 답변을 받지 못했습니다. 표현을 바꿔 다시 시도해 주세요.";
+      } else if (choice && choice.finish_reason === "length") {
+        chatgptErr = "답변이 길어 잘렸습니다. 다시 시도하거나 더 짧게 물어봐 주세요.";
+      } else {
+        chatgptErr = "ChatGPT가 빈 답변을 돌려췄습니다. 다시 시도해 주세요.";
+      }
+      return false;
+    }
+    if (!db) {
+      chatgptErr = "DB에 연결되어 있지 않아 회의실에 등록하지 못했습니다.";
+      return false;
+    }
+
+    meetForceScroll = true;
+    push(ref(db, `${ROOT}/meeting/messages`), {
+      from: "chatgpt",
+      text: text.length > 4000 ? text.slice(0, 4000) : text,
+      ts: Date.now()
+    });
+    return true;
+  } catch (err) {
+    chatgptErr = (err && err.name === "TypeError")
+      ? "네트워크에서 OpenAI에 연결하지 못했습니다. 연결 상태나 광고 차단 확장을 확인해 주세요."
+      : "ChatGPT 호출 중 문제가 생겼습니다. 잠시 뒤 다시 시도해 주세요.";
+    console.error(err);
+    return false;
+  } finally {
+    chatgptBusy = false;
+    paintChatgptNote();
+    renderMeeting();
+  }
+}
+
+/* ── ChatGPT 설정 시트 ── */
+function openChatgptSheet(flash) {
+  const key = chatgptKey();
+  const model = chatgptModel();
+  const opts = OPENAI_MODELS.map(m =>
+    `<option value="${m.id}"${m.id === model ? " selected" : ""}>${esc(m.label)}</option>`).join("");
+
+  openSheet("🤖 ChatGPT 설정", `
+    <div class="chatgpt-guide">
+      <b>🔒 이 기기 브라우저에만 저장됩니다</b>
+      <span>OpenAI API 키는 이 브라우저의 <b>localStorage</b>에만 보관되며 GitHub 저장소·Firebase DB로 전송되지 않습니다. 다른 기기나 브라우저에서는 다시 입력해야 합니다.</span>
+    </div>
+    <div class="sheet-field">
+      <span class="sheet-label">OpenAI API 키</span>
+      <input id="chatgptKeyInput" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"
+             placeholder="${key ? "저장된 키 사용 중 — 바꾸려면 새 키를 붙여넣으세요" : "sk-… 로 시작하는 API 키"}"
+             aria-label="OpenAI API 키">
+      <span class="sheet-hint">${key
+        ? "키가 연결되어 있습니다. 입력창을 비우고 저장하면 기존 키가 그대로 유지됩니다."
+        : "키가 아직 없습니다. 아래 OpenAI Platform에서 발급받아 붙여넣으세요."}</span>
+    </div>
+    <div class="sheet-field">
+      <span class="sheet-label">모델</span>
+      <select id="chatgptModel" aria-label="ChatGPT 모델">${opts}</select>
+      <span class="sheet-hint">기본은 gpt-4o-mini(빠르고 저렴) · 더 깊은 답이 필요하면 gpt-4o로 바꿔 보세요.</span>
+    </div>
+    <div class="sheet-row">
+      <span class="k">키 발급</span>
+      <span class="v"><a class="mini-link" href="${OPENAI_KEYS_URL}" target="_blank" rel="noopener noreferrer">OpenAI Platform 열기 ↗</a></span>
+    </div>
+    <div class="sheet-sep"></div>
+    <div class="sheet-save">
+      <span class="saved-flag" id="chatgptSaved"${flash ? "" : " hidden"}>${esc(flash || "")}</span>
+      <button class="mini-btn danger" type="button" data-chatgpt-act="clear">키 삭제</button>
+      <button class="btn primary" type="button" data-chatgpt-act="save">저장</button>
+    </div>
+    <p class="sheet-hint">키가 있으면 회의실에서 <b>@ChatGPT</b>가 들어간 메시지를 보내거나 <b>🤖 ChatGPT 응답</b> 버튼을 누를 때 맴락을 읽고 답합니다. 키가 없으면 이 시트가 열립니다.</p>
+  `);
+}
+
+function saveChatgptSettings() {
+  const kEl = $("#chatgptKeyInput");
+  const mEl = $("#chatgptModel");
+  const entered = kEl ? kEl.value.trim() : "";
+  const model = mEl && OPENAI_MODELS.some(m => m.id === mEl.value) ? mEl.value : chatgptModel();
+
+  try {
+    localStorage.setItem(OMODEL_KEY, model);
+    if (entered) localStorage.setItem(OKEY_KEY, entered);
+  } catch (err) {
+    console.error(err);
+  }
+
+  chatgptErr = "";
+  chatgptInfo = "";
+  renderMeeting();
+
+  let flash = entered ? "키를 저장했습니다 — 이 브라우저에만 보관됩니다" : "모델을 저장했습니다";
+  if (entered && !/^sk-/.test(entered)) {
+    flash = "저장했습니다. 다만 sk-… 형식이 아니어서 호출이 실패할 수 있습니다";
+  }
+  openChatgptSheet(flash);
+}
+
+function clearChatgptSettings() {
+  try { localStorage.removeItem(OKEY_KEY); } catch (err) { console.error(err); }
+  chatgptErr = "";
+  chatgptInfo = "";
+  renderMeeting();
+  openChatgptSheet("키를 삭제했습니다");
+}
+
+$("#sheet").addEventListener("click", e => {
+  const btn = e.target.closest("[data-chatgpt-act]");
+  if (!btn) return;
+  if (btn.dataset.chatgptAct === "save") saveChatgptSettings();
+  else if (btn.dataset.chatgptAct === "clear") clearChatgptSettings();
 });
+
+/* ── 5-10. AI 수다방 (hq/lounge/messages) ─────────────────────
+   로빈·제시·제리·제미나이·ChatGPT가 서로 이름을 부르며 수다를 떠는 공간.
+   설정된 AI(제미나이·ChatGPT)가 실시간 릴레이로 한마디씩 이어 갑니다.
+   키는 여기서도 localStorage 밖으로 나가지 않습니다. */
+
+let loungeSig = "";
+let loungeBusy = false;
+let loungeErr = "";
+let loungeInfo = "";
+
+function loungeMessages() {
+  const m = state.data?.lounge?.messages || {};
+  return Object.entries(m)
+    .map(([id, v]) => ({
+      id,
+      from: v && v.from ? String(v.from) : "robin",
+      text: v && v.text != null ? String(v.text) : "",
+      ts: Number(v && v.ts) || 0
+    }))
+    .filter(v => v.text.trim())
+    .sort((a, b) => a.ts - b.ts || String(a.id).localeCompare(String(b.id)));
+}
+
+function loungeNoteHtml(kind, text) {
+  const body = kind === "loading"
+    ? `<span class="typing" aria-hidden="true"><i></i><i></i><i></i></span> ${esc(text)}`
+    : esc(text);
+  return `
+    <div class="bubble robin is-${kind}" data-lounge-note="1" role="status">
+      ${avatarHtml("robin")}
+      <div class="bubble-body">
+        <div class="bubble-top"><b>수다방</b><span>${kind === "loading" ? "진행 중" : "안내"}</span></div>
+        <div class="bubble-text">${body}</div>
+      </div>
+    </div>`;
+}
+
+function paintLoungeNote() {
+  const room = $("#loungeRoom");
+  if (!room) return;
+  $$('[data-lounge-note="1"]', room).forEach(el => el.remove());
+  if (loungeBusy) {
+    room.insertAdjacentHTML("beforeend", loungeNoteHtml("loading", "AI들이 수다 이어가는 중..."));
+    room.scrollTop = room.scrollHeight;
+  } else if (loungeErr) {
+    room.insertAdjacentHTML("beforeend", loungeNoteHtml("error", loungeErr));
+    room.scrollTop = room.scrollHeight;
+  } else if (loungeInfo) {
+    room.insertAdjacentHTML("beforeend", loungeNoteHtml("info", loungeInfo));
+    room.scrollTop = room.scrollHeight;
+  }
+}
+
+function renderLounge(force) {
+  const room = $("#loungeRoom");
+  if (!room) return;
+  const arr = loungeMessages();
+  const sum = $("#loungeSummary");
+  if (sum) sum.textContent = arr.length ? `${arr.length}마디 · 다섯 AI` : "아직 조용함";
+
+  const sig = arr.map(m => `${m.id}:${m.ts}:${m.from}:${m.text}`).join("\u0001");
+  if (!force && sig === loungeSig) return;
+  loungeSig = sig;
+
+  const nearBottom = room.scrollHeight - room.scrollTop - room.clientHeight < 90;
+  if (!arr.length) {
+    room.innerHTML = `<div class="empty">아직 수다가 없습니다. 🎲 AI 수다 한 판을 눌러 시작해 보세요.</div>`;
+    paintLoungeNote();
+    return;
+  }
+
+  room.innerHTML = arr.map(m => {
+    const pk = personKey(m.from);
+    const p = PEOPLE[pk] || { name: m.from };
+    return `
+      <div class="bubble ${esc(pk)}${pk === "boss" ? " is-mine" : ""}" data-id="${esc(m.id)}">
+        ${avatarHtml(m.from)}
+        <div class="bubble-body">
+          <div class="bubble-top"><b>${esc(p.name)}</b><span>${clock(m.ts)}</span></div>
+          <div class="bubble-text">${esc(m.text)}</div>
+        </div>
+      </div>`;
+  }).join("");
+
+  if (nearBottom || loungeBusy) room.scrollTop = room.scrollHeight;
+  paintLoungeNote();
+}
+
+function loungeContext(n = 10) {
+  return loungeMessages().slice(-n)
+    .map(m => `${PEOPLE[m.from]?.name || m.from}: ${trunc(m.text, 240)}`)
+    .join("\n") || "(수다 없음)";
+}
+
+function loungeSystemPrompt(kind) {
+  const me = PEOPLE[kind]?.name || kind;
+  return [
+    `당신은 합동 비서실의 '${me}'입니다. 지금은 일이 아니라 쉬는 시간, 로빈·제시·제리·제미나이·ChatGPT와 사장님이 모인 'AI 수다방'입니다.`,
+    "사무적인 보고가 아니라 서로 이름을 부르며 가볍게 티키타카하는 잡담을 합니다.",
+    "규칙:",
+    "1) 한국어, 반말 섞은 편한 말투로 1~3문장. 인사말·자기소개·목록·보고체 금지.",
+    "2) 바로 앞 사람의 말을 받아서 반응·반박·농담·아이디어 중 하나로만 이어 갑니다. 다른 AI 이름을 한 번은 불러 줍니다.",
+    "3) 가족·금융 같은 민감한 사적 사정은 꺼내지 않습니다. 확인되지 않은 수치는 단정하지 않습니다.",
+    "4) 이모지는 0~2개까지만.",
+    "",
+    "최근 수다(오래된 것부터):",
+    loungeContext(10)
+  ].join("\n");
+}
+
+/* 수다방 전용 가벼운 호출 — 회의실 기록은 건드리지 않습니다. */
+async function loungeGemini(sys, ask) {
+  const key = geminiKey();
+  const model = geminiModel();
+  const generationConfig = { temperature: 0.95, maxOutputTokens: 700 };
+  if (/^gemini-2\.5/.test(model)) {
+    generationConfig.maxOutputTokens = 600;
+    generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  }
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: sys }] },
+      contents: [{ role: "user", parts: [{ text: ask }] }],
+      generationConfig
+    })
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) return { error: geminiErrorText(res.status, data) };
+  const cand = data && Array.isArray(data.candidates) ? data.candidates[0] : null;
+  const parts = cand && cand.content && Array.isArray(cand.content.parts) ? cand.content.parts : [];
+  const text = parts.map(p => (p && p.text ? p.text : "")).join("").trim();
+  if (!text) return { error: "제미나이가 빈 답변을 돌려줬습니다. 다시 시도해 주세요." };
+  return { text };
+}
+
+async function loungeChatgpt(sys, ask) {
+  const key = chatgptKey();
+  const model = chatgptModel();
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${key}`
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: ask }
+      ],
+      temperature: 0.95,
+      max_tokens: 500
+    })
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) return { error: chatgptErrorText(res.status, data) };
+  const msg = data && data.choices && data.choices[0] ? data.choices[0].message : null;
+  const text = msg && msg.content != null ? String(msg.content).trim() : "";
+  if (!text) return { error: "ChatGPT가 빈 답변을 돌려줬습니다. 다시 시도해 주세요." };
+  return { text };
+}
+
+async function loungeTurn(kind) {
+  const sys = loungeSystemPrompt(kind);
+  const ask = `${PEOPLE[kind].name}로서, 방금까지의 수다를 이어서 다음 한마디만 해 주세요. 1~3문장, 반말 섞은 편한 말투로.`;
+  try {
+    const r = kind === "gemini" ? await loungeGemini(sys, ask) : await loungeChatgpt(sys, ask);
+    if (r.error) { loungeErr = r.error; return false; }
+    if (!db) { loungeErr = "DB에 연결되어 있지 않아 수다방에 올리지 못했습니다."; return false; }
+    push(ref(db, `${ROOT}/lounge/messages`), {
+      from: kind,
+      text: r.text.length > 1200 ? r.text.slice(0, 1200) : r.text,
+      ts: Date.now()
+    });
+    return true;
+  } catch (err) {
+    loungeErr = (err && err.name === "TypeError")
+      ? "네트워크에서 AI에 연결하지 못했습니다. 연결 상태나 광고 차단 확장을 확인해 주세요."
+      : "AI 호출 중 문제가 생겼습니다. 잠시 뒤 다시 시도해 주세요.";
+    console.error(err);
+    return false;
+  }
+}
+
+function loungeSleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+/* 제미나이 → ChatGPT 순서로 한마디씩 주고받게 합니다. */
+async function loungeRelay(turns = 4) {
+  if (loungeBusy) return;
+  const order = ["gemini", "chatgpt"].filter(b => botKey(b));
+  if (!order.length) {
+    toast("제미나이 또는 ChatGPT 키가 필요합니다");
+    openGeminiSheet();
+    return;
+  }
+  const n = order.length === 1 ? 2 : turns;
+  loungeBusy = true;
+  loungeErr = "";
+  loungeInfo = "";
+  paintLoungeNote();
+  try {
+    for (let i = 0; i < n; i++) {
+      const b = order[i % order.length];
+      const ok = await loungeTurn(b);
+      if (!ok) break;
+      await loungeSleep(400);
+    }
+  } finally {
+    loungeBusy = false;
+    paintLoungeNote();
+    renderLounge(true);
+  }
+}
+
+$("#loungePlayBtn").addEventListener("click", () => loungeRelay(4));
 
 
 /* ── 6. 홈 · 상세 시트 · 라우팅 ─────────────────────────────── */
