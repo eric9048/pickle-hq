@@ -36,7 +36,7 @@
 - 잠금 화면에서 PIN을 입력하면 입장합니다. 인증 상태는 브라우저 localStorage에 남고, 우측 상단 **나가기**로 해제합니다.
 - 대메뉴(홈·회의실·업무·콘텐츠·수익·장부)를 누르면 그 영역의 소메뉴만 보이고, 소메뉴를 누르면 상세가 열립니다.
 - 주소 해시로 현재 위치를 기억합니다: `#home`, `#meeting/room`, `#meeting/feed`, `#tasks/all|doing|waiting|done`, `#content/blog|threads|campaigns`, `#revenue/all|coupang|shopconnect|detailing`. 새로고침해도 그 자리로 돌아옵니다.
-- PIN을 바꾸려면 `app.js`의 `const PIN = "1028";` 값을 고쳐 커밋하면 됩니다.
+- PIN을 바꾸려면 `app.js`의 `const PIN = "1247";` 값을 고쳐 커밋하면 됩니다.
 - `robots` 메타로 검색 노출을 막아 두었습니다(`noindex, nofollow`).
 
 ## 참고

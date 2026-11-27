@@ -21,7 +21,7 @@ const firebaseConfig = {
 };
 
 /* 접속 PIN — 바꾸려면 아래 문자열만 수정하면 됩니다. */
-const PIN = "1028";
+const PIN = "1247";
 const AUTH_KEY = "hq.auth.v1";
 const THEME_KEY = "hq.theme.v1";
 
