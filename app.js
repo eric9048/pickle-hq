@@ -109,10 +109,19 @@ function won(n) {
    assets/avatars/{key}.png 를 원형으로 보여 주고, 이미지가 없거나
    로드에 실패하면 기존 이모지로 자연스럽게 되돌아갑니다. */
 const AVATAR_VER = "20261127p";
+/* 한글 이름으로 남은 메시지·메모도 같은 캐릭터로 보이게 맞춥니다. */
+const PERSON_ALIAS = {
+  "사장님": "boss", "박이만": "boss",
+  "로빈": "robin", "제시": "jessi", "제리": "jerry", "제미나이": "gemini"
+};
+function personKey(k) {
+  const s = String(k ?? "");
+  return PERSON_ALIAS[s] || s;
+}
 function avatarHtml(key, cls = "") {
-  const p = PEOPLE[key] || {};
+  const k = personKey(key);
+  const p = PEOPLE[k] || {};
   const emoji = p.emoji || "👤";
-  const k = String(key || "");
   return `<span class="avatar${cls ? " " + cls : ""}" data-avatar="${esc(k)}" aria-hidden="true">`
     + `<img src="assets/avatars/${esc(k)}.png?v=${AVATAR_VER}" alt="" decoding="async" loading="lazy" onerror="this.remove()">`
     + `<span class="av-fb">${emoji}</span></span>`;
@@ -653,7 +662,7 @@ function renderFeed() {
   box.innerHTML = arr.map(m => `
     <div class="msg">
       <div class="msg-top">
-        <span class="who ${esc(m.from)}">${avatarHtml(m.from, "xs")}<span>${esc(OWNER[m.from] || m.from)}</span></span>
+        <span class="who ${esc(personKey(m.from))}">${avatarHtml(m.from, "xs")}<span>${esc(OWNER[m.from] || m.from)}</span></span>
         <span class="msg-time">${timeAgo(m.ts)}</span>
         <button class="mini-btn danger" data-act="del-feed" data-id="${m.id}" type="button" title="삭제">✕</button>
       </div>
@@ -758,7 +767,8 @@ function renderMeeting(force) {
   }
 
   room.innerHTML = arr.map(m => {
-    const p = PEOPLE[m.from] || { name: m.from, emoji: "👤" };
+    const pk = personKey(m.from);
+    const p = PEOPLE[pk] || { name: m.from, emoji: "👤" };
     const mine = m.from === "boss";
     const rt = m.replyTo;
     const quote = rt && (rt.text || rt.from)
@@ -770,7 +780,7 @@ function renderMeeting(force) {
       : "";
     const picked = state.picked.has(m.id);
     return `
-      <div class="bubble ${esc(m.from)}${mine ? " is-mine" : ""}${picked ? " is-picked" : ""}" data-id="${esc(m.id)}">
+      <div class="bubble ${esc(pk)}${mine ? " is-mine" : ""}${picked ? " is-picked" : ""}" data-id="${esc(m.id)}">
         <button class="pick" type="button" data-act="pick" data-id="${esc(m.id)}"
                 aria-pressed="${picked ? "true" : "false"}"
                 aria-label="이 말풍선 선택">${picked ? "✓" : ""}</button>
