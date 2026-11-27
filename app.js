@@ -55,11 +55,23 @@ const PEOPLE = {
   boss: { name: "사장님", emoji: "👑", role: "사장님" },
   robin: { name: "로빈", emoji: "🦉", role: "비서" },
   jessi: { name: "제시", emoji: "✨", role: "비서" },
-  jerry: { name: "제리", emoji: "🍀", role: "비서" }
+  jerry: { name: "제리", emoji: "🍀", role: "비서" },
+  gemini: { name: "제미나이", emoji: "💎", role: "전략 파트너" }
 };
-const PEOPLE_ORDER = ["boss", "robin", "jessi", "jerry"];
+const PEOPLE_ORDER = ["boss", "robin", "jessi", "jerry", "gemini"];
 const SAY_KEY = "hq.meet.say.v1";
 const savedSay = localStorage.getItem(SAY_KEY);
+
+/* 제미나이 — API 키는 이 브라우저의 localStorage에만 보관합니다.
+   GitHub(공개 저장소)·Firebase RTDB 어디에도 키를 쓰지 않습니다. */
+const GKEY_KEY = "pickle_hq_gemini_key";
+const GMODEL_KEY = "pickle_hq_gemini_model";
+const GEMINI_MODELS = [
+  { id: "gemini-2.5-flash", label: "gemini-2.5-flash (기본 · 빠름)" },
+  { id: "gemini-2.0-flash", label: "gemini-2.0-flash (보조 · 안정)" }
+];
+const GEMINI_DEFAULT_MODEL = GEMINI_MODELS[0].id;
+const GEMINI_STUDIO_URL = "https://aistudio.google.com/apikey";
 
 /* ── 2. 상태 ─────────────────────────────────────────────── */
 
@@ -674,8 +686,8 @@ function renderMeeting() {
   renderMeetingPeople(arr);
   renderMeetingTopic();
   $("#meetSummary").textContent = arr.length
-    ? `${arr.length}개 메시지 · 참여자 4명`
-    : "참여자 4명";
+    ? `${arr.length}개 메시지 · 참여자 5명`
+    : "참여자 5명";
   const mc = $("#meetMsgCount");
   if (mc) mc.textContent = arr.length;
 
@@ -690,6 +702,7 @@ function renderMeeting() {
 
   if (!arr.length) {
     room.innerHTML = `<div class="empty">아직 대화가 없습니다. 첫 메시지를 남겨 보세요.</div>`;
+    if (geminiBusy || geminiErr) paintGeminiNote();
     return;
   }
 
@@ -714,6 +727,7 @@ function renderMeeting() {
     meetForceScroll = false;
     room.scrollTop = room.scrollHeight;
   }
+  if (geminiBusy || geminiErr) paintGeminiNote();
 }
 
 /* 비서별 사용량 (hq/usage/{robin|jessi|jerry}) */
@@ -786,6 +800,29 @@ function renderMeetingPeople(arr) {
       </div>`;
     }
 
+    /* 제미나이 — API 키 연결 상태 카드. 누르면 키 설정 시트가 열립니다. */
+    if (k === "gemini") {
+      const on = !!geminiKey();
+      const model = geminiModel();
+      const label = on ? "API 키 연결됨" : "API 키 미설정";
+      const sub2 = on ? model : "눌러서 입력";
+      const title = on
+        ? `${p.name} · ${label} · ${model} — 눌러서 키·모델 변경`
+        : `${p.name} · ${label} (눌러서 입력) — Google AI Studio 키를 넣으면 회의실에서 답합니다`;
+      return `
+      <button class="person gemini" type="button" data-gemini="settings" data-on="${on ? "true" : "false"}"
+              title="${esc(title)}"
+              aria-label="${esc(title)}">
+        <span class="avatar" aria-hidden="true">${p.emoji}</span>
+        <span class="person-text">
+          <b>${esc(p.name)} <span class="live" aria-hidden="true"></span></b>
+          <small class="u-label">${esc(label)}</small>
+          <small class="u-time">${esc(sub2)}</small>
+        </span>
+        <span class="key-mark" aria-hidden="true">${on ? "🔑" : "＋"}</span>
+      </button>`;
+    }
+
     const u = usageData(k);
     const when = u.updatedAt ? timeAgo(u.updatedAt) : "갱신 전";
     const title = u.pct == null
@@ -810,6 +847,8 @@ function renderMeetingPeople(arr) {
 }
 
 $("#meetPeople").addEventListener("click", e => {
+  const g = e.target.closest("[data-gemini]");
+  if (g) { openGeminiSheet(); return; }
   const btn = e.target.closest("[data-usage]");
   if (!btn) return;
   openUsageSheet(btn.dataset.usage);
@@ -886,11 +925,15 @@ function autoGrow(ta) {
   ta.style.overflowY = need > 140 ? "auto" : "hidden";
 }
 
-function sendMeet() {
+function sendMeet(forceGemini) {
   const ta = $("#meetText");
   if (!db) return;
   const text = ta.value.trim();
   if (!text) return;
+  const callGemini = !!forceGemini || wantsGemini(text);
+  /* 방금 보낼 메시지는 따로 전달하므로, 시스템 프롬프트는 보내기 전 대화로 만듭니다. */
+  const sys = callGemini ? geminiSystemPrompt() : "";
+  geminiErr = "";
   meetForceScroll = true;
   push(ref(db, `${ROOT}/meeting/messages`), {
     from: state.say,
@@ -900,6 +943,7 @@ function sendMeet() {
   ta.value = "";
   autoGrow(ta);
   ta.focus();
+  if (callGemini) askGemini(text, sys);
 }
 
 $("#meetForm").addEventListener("submit", e => {
@@ -925,6 +969,268 @@ $("#meetRoom").addEventListener("click", e => {
 });
 
 paintSay();
+
+/* ── 5-8. 제미나이 (Gemini API) ────────────────────────────────
+   · API 키는 localStorage(pickle_hq_gemini_key)에만 저장
+   · 호출은 브라우저에서 Google Generative Language API로 직접
+   · 결과는 hq/meeting/messages 에 from:"gemini" 로 등록            */
+
+let geminiBusy = false;
+let geminiErr = "";
+
+function geminiKey() {
+  try { return String(localStorage.getItem(GKEY_KEY) || "").trim(); }
+  catch (err) { return ""; }
+}
+
+function geminiModel() {
+  let m = "";
+  try { m = String(localStorage.getItem(GMODEL_KEY) || ""); } catch (err) { m = ""; }
+  return GEMINI_MODELS.some(x => x.id === m) ? m : GEMINI_DEFAULT_MODEL;
+}
+
+function wantsGemini(text) {
+  return /제미나이|gemini/i.test(String(text || ""));
+}
+
+/* 방금 대화 맥락 — 시스템 프롬프트에 넣을 최근 12건 */
+function geminiHistory(n = 12) {
+  return meetMessages().slice(-n)
+    .map(m => `[${PEOPLE[m.from]?.name || m.from}] ${trunc(m.text, 300)}`)
+    .join("\n");
+}
+
+function geminiDoingTasks() {
+  const doing = tasksArr().filter(t => t.status === "doing").slice(0, 12);
+  if (!doing.length) return "(진행 중 업무 없음)";
+  return doing.map(t => `- ${t.title} (담당: ${OWNER[t.owner] || t.owner})`).join("\n");
+}
+
+function geminiSystemPrompt() {
+  const topic = meetTopic().text || "아직 정해지지 않음";
+  return [
+    "당신은 '제미나이'입니다. 박이만 사장님과 피클 비서 3명(로빈·제시·제리)이 함께 쓰는 '합동 비서실'의 다섯 번째 참여자이자 전략 파트너입니다.",
+    "역할: 아이디어 브레인스토밍, 사업·콘텐츠 전략 검증, 의사결정에 필요한 근거와 대안 제시. 로빈·제시·제리와 같은 편에서 사장님의 일을 돕습니다.",
+    "답변 규칙:",
+    "1) 한국어로 쓰고, 사장님을 '사장님'이라고 부릅니다.",
+    "2) 이 답변은 회의실 대화창에 그대로 올라갑니다. 인사말·자기소개 없이 본론부터, 3~6문장 또는 짧은 목록으로 간결하게 씁니다.",
+    "3) 확인되지 않은 수치나 사실은 단정하지 말고 '추정'이라고 밝힙니다. 모르면 모른다고 말합니다.",
+    "4) 가족·금융 같은 민감한 사적 사정은 먼저 꺼내지 않습니다.",
+    "5) 마지막에 사장님이 바로 할 수 있는 다음 한 걸음을 한 줄로 제안합니다.",
+    "",
+    `현재 안건: ${topic}`,
+    "",
+    "최근 회의실 대화(오래된 것부터):",
+    geminiHistory(12) || "(대화 없음)",
+    "",
+    "업무 보드 진행 중:",
+    geminiDoingTasks()
+  ].join("\n");
+}
+
+function geminiErrorText(status, data) {
+  const err = data && data.error ? data.error : {};
+  const msg = err && err.message ? String(err.message) : "";
+  const reason = Array.isArray(err && err.details)
+    ? String((err.details.find(d => d && d.reason) || {}).reason || "")
+    : "";
+  if (/API_KEY_INVALID|API key not valid/i.test(reason + " " + msg)) {
+    return "API 키가 올바르지 않습니다. Google AI Studio에서 키를 다시 확인해 주세요.";
+  }
+  if (status === 400) return "요청이 거부되었습니다. 키와 모델을 확인해 주세요." + (msg ? ` (${trunc(msg, 90)})` : "");
+  if (status === 403) return "이 키로는 호출이 허용되지 않습니다. 키 제한·API 사용 설정을 확인해 주세요.";
+  if (status === 404) return "선택한 모델을 찾을 수 없습니다. 모델을 gemini-2.0-flash로 바꿔 보세요.";
+  if (status === 429) return "무료 할당량을 넘었습니다. 잠시 뒤 다시 시도하거나 다른 모델을 골라 주세요.";
+  if (status >= 500) return "Gemini 서버가 잠시 응답하지 않습니다. 잠시 뒤 다시 시도해 주세요.";
+  return `Gemini 호출에 실패했습니다 (HTTP ${status}).` + (msg ? ` ${trunc(msg, 90)}` : "");
+}
+
+function geminiNoteHtml(kind, text) {
+  const body = kind === "loading"
+    ? `<span class="typing" aria-hidden="true"><i></i><i></i><i></i></span> ${esc(text)}`
+    : esc(text);
+  return `
+    <div class="bubble gemini is-${kind}" data-gemini-note="1" role="status">
+      <span class="avatar" aria-hidden="true">💎</span>
+      <div class="bubble-body">
+        <div class="bubble-top"><b>제미나이</b><span>${kind === "loading" ? "작성 중" : "안내"}</span></div>
+        <div class="bubble-text">${body}</div>
+      </div>
+    </div>`;
+}
+
+/* 회의실 안의 임시 안내(로딩·오류) — DB에는 남기지 않습니다. */
+function paintGeminiNote() {
+  const room = $("#meetRoom");
+  if (!room) return;
+  $$('[data-gemini-note="1"]', room).forEach(el => el.remove());
+  if (geminiBusy) {
+    room.insertAdjacentHTML("beforeend", geminiNoteHtml("loading", "제미나이가 답변 작성 중..."));
+    room.scrollTop = room.scrollHeight;
+  } else if (geminiErr) {
+    room.insertAdjacentHTML("beforeend", geminiNoteHtml("error", geminiErr));
+    room.scrollTop = room.scrollHeight;
+  }
+}
+
+async function askGemini(userText, systemText) {
+  const key = geminiKey();
+  if (!key) { openGeminiSheet(); return false; }
+  if (geminiBusy) return false;
+
+  const model = geminiModel();
+  const sys = systemText || geminiSystemPrompt();
+  const ask = String(userText || "").trim()
+    || "지금까지의 대화와 현재 안건을 바탕으로 사장님이 바로 쓸 수 있는 핵심 의견 2~3가지와 다음 한 걸음을 제안해 주세요.";
+
+  geminiBusy = true;
+  geminiErr = "";
+  paintGeminiNote();
+
+  try {
+    const generationConfig = { temperature: 0.7, maxOutputTokens: 1400 };
+    /* 2.5 flash는 thinking을 꺼야 답변이 잘리지 않습니다. */
+    if (/^gemini-2\.5/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: sys }] },
+        contents: [{ role: "user", parts: [{ text: ask }] }],
+        generationConfig
+      })
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      geminiErr = geminiErrorText(res.status, data);
+      return false;
+    }
+
+    const cand = data && Array.isArray(data.candidates) ? data.candidates[0] : null;
+    const parts = cand && cand.content && Array.isArray(cand.content.parts) ? cand.content.parts : [];
+    const text = parts.map(p => (p && p.text ? p.text : "")).join("").trim();
+
+    if (!text) {
+      if (data && data.promptFeedback && data.promptFeedback.blockReason) {
+        geminiErr = "요청이 안전 정책으로 차단되어 답변을 받지 못했습니다. 표현을 바꿔 다시 시도해 주세요.";
+      } else if (cand && cand.finishReason === "MAX_TOKENS") {
+        geminiErr = "답변이 길어 잘렸습니다. 다시 시도하거나 gemini-2.0-flash로 바꿔 보세요.";
+      } else {
+        geminiErr = "Gemini가 빈 답변을 돌려줬습니다. 다시 시도해 주세요.";
+      }
+      return false;
+    }
+    if (!db) {
+      geminiErr = "DB에 연결되어 있지 않아 회의실에 등록하지 못했습니다.";
+      return false;
+    }
+
+    meetForceScroll = true;
+    push(ref(db, `${ROOT}/meeting/messages`), {
+      from: "gemini",
+      text: text.length > 4000 ? text.slice(0, 4000) : text,
+      ts: Date.now()
+    });
+    return true;
+  } catch (err) {
+    geminiErr = (err && err.name === "TypeError")
+      ? "네트워크에서 Gemini에 연결하지 못했습니다. 연결 상태나 광고 차단 확장을 확인해 주세요."
+      : "Gemini 호출 중 문제가 생겼습니다. 잠시 뒤 다시 시도해 주세요.";
+    console.error(err);
+    return false;
+  } finally {
+    geminiBusy = false;
+    paintGeminiNote();
+    renderMeeting();
+  }
+}
+
+/* ── 제미나이 설정 시트 ── */
+function openGeminiSheet(flash) {
+  const key = geminiKey();
+  const model = geminiModel();
+  const opts = GEMINI_MODELS.map(m =>
+    `<option value="${m.id}"${m.id === model ? " selected" : ""}>${esc(m.label)}</option>`).join("");
+
+  openSheet("💎 제미나이 설정", `
+    <div class="gemini-guide">
+      <b>🔒 이 기기 브라우저에만 저장됩니다</b>
+      <span>Gemini API 키는 이 브라우저의 <b>localStorage</b>에만 보관되며 GitHub 저장소·Firebase DB로 전송되지 않습니다. 다른 기기나 브라우저에서는 다시 입력해야 합니다.</span>
+    </div>
+    <div class="sheet-field">
+      <span class="sheet-label">Gemini API 키</span>
+      <input id="geminiKeyInput" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"
+             placeholder="${key ? "저장된 키 사용 중 — 바꾸려면 새 키를 붙여넣으세요" : "AIza… 로 시작하는 API 키"}"
+             aria-label="Gemini API 키">
+      <span class="sheet-hint">${key
+        ? "키가 연결되어 있습니다. 입력창을 비우고 저장하면 기존 키가 그대로 유지됩니다."
+        : "키가 아직 없습니다. 아래 Google AI Studio에서 무료로 발급받아 붙여넣으세요."}</span>
+    </div>
+    <div class="sheet-field">
+      <span class="sheet-label">모델</span>
+      <select id="geminiModel" aria-label="Gemini 모델">${opts}</select>
+      <span class="sheet-hint">기본은 gemini-2.5-flash. 응답이 느리거나 오류가 나면 gemini-2.0-flash로 바꿔 보세요.</span>
+    </div>
+    <div class="sheet-row">
+      <span class="k">키 발급</span>
+      <span class="v"><a class="mini-link" href="${GEMINI_STUDIO_URL}" target="_blank" rel="noopener noreferrer">Google AI Studio 열기 ↗</a></span>
+    </div>
+    <div class="sheet-sep"></div>
+    <div class="sheet-save">
+      <span class="saved-flag" id="geminiSaved"${flash ? "" : " hidden"}>${esc(flash || "")}</span>
+      <button class="mini-btn danger" type="button" data-gemini-act="clear">키 삭제</button>
+      <button class="btn primary" type="button" data-gemini-act="save">저장</button>
+    </div>
+    <p class="sheet-hint">키가 있으면 회의실에서 <b>@제미나이</b>가 들어간 메시지를 보내거나 <b>💎 제미나이 응답</b> 버튼을 누를 때 Gemini가 맥락을 읽고 답합니다. 키가 없으면 이 시트가 열립니다.</p>
+  `);
+}
+
+function saveGeminiSettings() {
+  const kEl = $("#geminiKeyInput");
+  const mEl = $("#geminiModel");
+  const entered = kEl ? kEl.value.trim() : "";
+  const model = mEl && GEMINI_MODELS.some(m => m.id === mEl.value) ? mEl.value : geminiModel();
+
+  try {
+    localStorage.setItem(GMODEL_KEY, model);
+    if (entered) localStorage.setItem(GKEY_KEY, entered);
+  } catch (err) {
+    console.error(err);
+  }
+
+  geminiErr = "";
+  renderMeeting();
+
+  let flash = entered ? "키를 저장했습니다 — 이 브라우저에만 보관됩니다" : "모델을 저장했습니다";
+  if (entered && !/^AIza/.test(entered)) {
+    flash = "저장했습니다. 다만 AIza… 형식이 아니어서 호출이 실패할 수 있습니다";
+  }
+  openGeminiSheet(flash);
+}
+
+function clearGeminiSettings() {
+  try { localStorage.removeItem(GKEY_KEY); } catch (err) { console.error(err); }
+  geminiErr = "";
+  renderMeeting();
+  openGeminiSheet("키를 삭제했습니다");
+}
+
+/* 상세 시트와 같은 DOM을 씁니다(sheetEl 상수는 아래 6-3에서 선언되므로 여기서는 직접 조회). */
+$("#sheet").addEventListener("click", e => {
+  const btn = e.target.closest("[data-gemini-act]");
+  if (!btn) return;
+  if (btn.dataset.geminiAct === "save") saveGeminiSettings();
+  else if (btn.dataset.geminiAct === "clear") clearGeminiSettings();
+});
+
+$("#meetGeminiBtn").addEventListener("click", () => {
+  if (!geminiKey()) { openGeminiSheet(); return; }
+  const ta = $("#meetText");
+  const text = ta.value.trim();
+  if (text) sendMeet(true);
+  else askGemini("");
+});
 
 
 /* ── 6. 홈 · 상세 시트 · 라우팅 ─────────────────────────────── */

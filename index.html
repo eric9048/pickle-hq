@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="dark light">
 <title>합동 비서실</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏢%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=20261127i">
+<link rel="stylesheet" href="style.css?v=20261127j">
 </head>
 <body>
 
@@ -61,7 +61,7 @@
       </div>
       <div class="home-grid" id="homeGrid"></div>
       <div class="card home-tip">
-        <p>대메뉴에서 영역을 고르면 그 안의 소메뉴만 보입니다. 회의실은 사장님·로빈·제시·제리 네 명이 실시간으로 함께 씁니다.</p>
+        <p>대메뉴에서 영역을 고르면 그 안의 소메뉴만 보입니다. 회의실은 사장님·로빈·제시·제리 네 명과 💎 제미나이가 실시간으로 함께 씁니다.</p>
       </div>
     </section>
 
@@ -69,7 +69,7 @@
     <section class="view" data-view="meeting" hidden>
       <div class="view-head">
         <h2>💬 합동 회의실</h2>
-        <span class="hint" id="meetSummary">참여자 4명</span>
+        <span class="hint" id="meetSummary">참여자 5명</span>
       </div>
 
       <div class="subnav" data-subnav="meeting">
@@ -100,6 +100,10 @@
             </div>
             <div class="meet-input">
               <textarea id="meetText" rows="1" placeholder="사장님으로 말하기 (Enter 전송 · Shift+Enter 줄바꿈)" aria-label="회의 메시지" required></textarea>
+              <button class="btn gemini-btn" id="meetGeminiBtn" type="button"
+                      title="제미나이에게 이 대화로 답변 요청" aria-label="제미나이에게 응답 요청">
+                <span class="gb-ico" aria-hidden="true">💎</span><span class="gb-text">제미나이 응답</span>
+              </button>
               <button class="btn primary" type="submit">보내기</button>
             </div>
           </form>
@@ -292,6 +296,6 @@
   </div>
 </div>
 
-<script type="module" src="app.js?v=20261127i"></script>
+<script type="module" src="app.js?v=20261127j"></script>
 </body>
 </html>
