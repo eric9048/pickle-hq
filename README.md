@@ -3,7 +3,7 @@
 박이만 사장님과 3명의 피클 비서(로빈 · 제시 · 제리)가 함께 쓰는 실시간 대시보드입니다.
 정적 페이지(GitHub Pages) + Firebase Realtime Database로 동작하며, 새로고침 없이 모든 기기에 즉시 반영됩니다.
 
-## 화면
+## 화면 (대메뉴 → 소메뉴 → 상세)
 
 - **💬 합동 회의실** — 사장님·로빈·제시·제리 4인이 한 화면에서 실시간으로 대화. 발화자 선택, Enter 전송(Shift+Enter 줄바꿈),
   현재 안건 표시·수정, 메시지 삭제. Firebase `hq/meeting` 노드를 구독해 새로고침 없이 즉시 반영됩니다.
@@ -19,7 +19,7 @@
 | --- | --- |
 | `index.html` | 화면 구조 (잠금 화면 + 대시보드) |
 | `style.css` | 다크/라이트 테마, 반응형 레이아웃 |
-| `app.js` | Firebase 연결, 실시간 렌더링, 모든 편집 동작. 상단에 `firebaseConfig`와 접속 PIN이 있습니다 |
+| `app.js` | Firebase 연결, 실시간 렌더링, 라우팅(#해시), 상세 시트, 모든 편집 동작. 상단에 `firebaseConfig`와 접속 PIN이 있습니다 |
 
 > 파일을 고쳐 배포할 때는 `index.html`의 `style.css?v=` · `app.js?v=` 값을 함께 올려 주세요.
 > GitHub Pages가 파일을 최대 10분간 캐시하므로, 값이 같으면 새 코드가 바로 보이지 않습니다.
@@ -27,6 +27,8 @@
 ## 접속
 
 - 잠금 화면에서 PIN을 입력하면 입장합니다. 인증 상태는 브라우저 localStorage에 남고, 우측 상단 **나가기**로 해제합니다.
+- 대메뉴(홈·회의실·업무·콘텐츠·수익·장부)를 누르면 그 영역의 소메뉴만 보이고, 소메뉴를 누르면 상세가 열립니다.
+- 주소 해시로 현재 위치를 기억합니다: `#home`, `#meeting/room`, `#meeting/feed`, `#tasks/all|doing|waiting|done`, `#content/blog|threads|campaigns`, `#revenue/all|coupang|shopconnect|detailing`. 새로고침해도 그 자리로 돌아옵니다.
 - PIN을 바꾸려면 `app.js`의 `const PIN = "1028";` 값을 고쳐 커밋하면 됩니다.
 - `robots` 메타로 검색 노출을 막아 두었습니다(`noindex, nofollow`).
 

@@ -169,6 +169,7 @@ function startBoard() {
 /* ── 5. 렌더 ─────────────────────────────────────────────── */
 
 function renderAll() {
+  renderHome();
   renderMeeting();
   renderTasks();
   renderBlog();
@@ -196,18 +197,28 @@ function renderTasks() {
   const list = state.ownerFilter === "all" ? all : all.filter(t => t.owner === state.ownerFilter);
 
   const counts = { doing: 0, waiting: 0, done: 0 };
-  list.forEach(t => { counts[t.status] = (counts[t.status] || 0) + 1; });
-  $$("[data-count]").forEach(el => { el.textContent = counts[el.dataset.count] || 0; });
+  all.forEach(t => { counts[t.status] = (counts[t.status] || 0) + 1; });
+  const fcounts = { doing: 0, waiting: 0, done: 0 };
+  list.forEach(t => { fcounts[t.status] = (fcounts[t.status] || 0) + 1; });
+
+  $$("[data-count]").forEach(el => { el.textContent = fcounts[el.dataset.count] || 0; });
+  $$("[data-tabcount]").forEach(el => {
+    const k = el.dataset.tabcount;
+    el.textContent = k === "all" ? all.length : (counts[k] || 0);
+  });
 
   $("#taskSummary").textContent =
     `${list.length}건` + (state.ownerFilter === "all" ? "" : ` · ${OWNER[state.ownerFilter]}`);
 
   ["doing", "waiting", "done"].forEach(st => {
-    const box = $(`[data-list="${st}"]`);
     const items = list.filter(t => t.status === st);
-    box.innerHTML = items.length
+    const html = items.length
       ? items.map(t => taskCard(t)).join("")
       : `<div class="empty">비어 있음</div>`;
+    const box = $(`[data-list="${st}"]`);
+    if (box) box.innerHTML = html;
+    const pane = $(`[data-status-list="${st}"]`);
+    if (pane) pane.innerHTML = html;
   });
 }
 
@@ -257,19 +268,25 @@ $("#taskForm").addEventListener("submit", e => {
   $("#taskTitle").focus();
 });
 
-$("#kanban").addEventListener("click", e => {
-  const btn = e.target.closest("[data-act]");
-  if (!btn || !db) return;
-  const id = btn.dataset.id;
-  const item = ref(db, `${ROOT}/tasks/${id}`);
-  if (btn.dataset.act === "status") {
-    update(item, { status: btn.dataset.status, updatedAt: Date.now() });
-  } else if (btn.dataset.act === "del") {
-    if (confirm("이 업무를 삭제할까요?")) remove(item);
+$("#tasksView").addEventListener("click", e => {
+  if (e.target.closest("select, input, textarea, label")) return;
+  const actEl = e.target.closest("[data-act]");
+  const act = actEl ? actEl.dataset.act : null;
+
+  if (act === "status" || act === "del") {
+    if (!db) return;
+    const id = actEl.dataset.id;
+    const item = ref(db, `${ROOT}/tasks/${id}`);
+    if (act === "status") update(item, { status: actEl.dataset.status, updatedAt: Date.now() });
+    else if (confirm("이 업무를 삭제할까요?")) remove(item);
+    return;
   }
+
+  const card = e.target.closest(".task");
+  if (card) openTaskSheet(card.dataset.id);
 });
 
-$("#kanban").addEventListener("change", e => {
+$("#tasksView").addEventListener("change", e => {
   const sel = e.target.closest('select[data-act="owner"]');
   if (!sel || !db) return;
   update(ref(db, `${ROOT}/tasks/${sel.dataset.id}`), { owner: sel.value, updatedAt: Date.now() });
@@ -288,6 +305,8 @@ function renderBlog() {
   const pub = all.filter(b => b.status === "published").length;
   const draft = all.filter(b => b.status === "draft").length;
   $("#blogSummary").textContent = `${all.length}편 · 발행 ${pub} · 임시저장 ${draft}`;
+  const cnt = $("#blogCount");
+  if (cnt) cnt.textContent = all.length;
 
   const list = state.blogFilter === "all" ? all : all.filter(b => b.status === state.blogFilter);
   const box = $("#blogList");
@@ -327,6 +346,12 @@ $("#blogList").addEventListener("change", e => {
 });
 
 $("#blogList").addEventListener("click", e => {
+  if (e.target.closest("select, input") || e.target.closest('[data-act="edit-title"]')) return;
+  const row = e.target.closest(".blog-row");
+  if (row) openBlogSheet(row.dataset.key);
+});
+
+$("#blogList").addEventListener("click", e => {
   const span = e.target.closest('[data-act="edit-title"]');
   if (!span || !db) return;
   if (span.dataset.editing) return;
@@ -362,6 +387,8 @@ function renderThreads() {
     .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || (b.order || 0) - (a.order || 0));
 
   const box = $("#threadList");
+  const cnt = $("#threadCount");
+  if (cnt) cnt.textContent = arr.length;
   if (!arr.length) { box.innerHTML = `<div class="empty">등록된 스레드가 없습니다</div>`; return; }
 
   box.innerHTML = arr.map(s => {
@@ -369,7 +396,7 @@ function renderThreads() {
       `<option value="${k}"${s.status === k ? " selected" : ""}>${v}</option>`).join("");
     const link = s.url ? `<a class="mini-link" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">게시물 열기 ↗</a>` : "";
     return `
-      <div class="mini-item">
+      <div class="mini-item" data-id="${s.id}">
         <div class="mini-top">
           <span class="mini-title">${esc(s.title)}</span>
           <select data-act="thread-status" data-id="${s.id}" aria-label="스레드 상태">${opts}</select>
@@ -382,6 +409,12 @@ function renderThreads() {
       </div>`;
   }).join("");
 }
+
+$("#threadList").addEventListener("click", e => {
+  if (e.target.closest("select, a")) return;
+  const item = e.target.closest(".mini-item");
+  if (item) openThreadSheet(item.dataset.id);
+});
 
 $("#threadList").addEventListener("change", e => {
   const sel = e.target.closest('select[data-act="thread-status"]');
@@ -396,6 +429,8 @@ function renderCampaigns() {
     .sort((a, b) => String(a.due || "").localeCompare(String(b.due || "")));
 
   const box = $("#campaignList");
+  const cnt = $("#campaignCount");
+  if (cnt) cnt.textContent = arr.length;
   if (!arr.length) { box.innerHTML = `<div class="empty">등록된 캠페인이 없습니다</div>`; return; }
 
   box.innerHTML = arr.map(k => {
@@ -406,7 +441,7 @@ function renderCampaigns() {
     const label = d === null ? "" : (d === 0 ? "D-DAY" : (d > 0 ? `D-${d}` : `마감 ${Math.abs(d)}일 지남`));
     const due = k.due ? String(k.due).slice(5).replace("-", "/") : "";
     return `
-      <div class="mini-item">
+      <div class="mini-item" data-id="${k.id}">
         <div class="mini-top">
           <span class="mini-title">${esc(k.name)}</span>
           ${label ? `<span class="dday ${cls}">${label}</span>` : ""}
@@ -419,6 +454,12 @@ function renderCampaigns() {
       </div>`;
   }).join("");
 }
+
+$("#campaignList").addEventListener("click", e => {
+  if (e.target.closest("select")) return;
+  const item = e.target.closest(".mini-item");
+  if (item) openCampaignSheet(item.dataset.id);
+});
 
 $("#campaignList").addEventListener("change", e => {
   const sel = e.target.closest('select[data-act="camp-status"]');
@@ -449,7 +490,7 @@ function renderMoney() {
 
   if (aff.coupang) {
     cards.push(`
-      <div class="money">
+      <div class="money clickable" data-go="coupang">
         <h4>쿠팡 파트너스</h4>
         <div class="big">${won(aff.coupang.revenue)} <small>${aff.coupang.orders || 0}건</small></div>
         <div class="lines">
@@ -461,7 +502,7 @@ function renderMoney() {
 
   if (aff.shopconnect) {
     cards.push(`
-      <div class="money">
+      <div class="money clickable" data-go="shopconnect">
         <h4>네이버 쇼핑커넥트</h4>
         <div class="big">${won(aff.shopconnect.revenue)} <small>${aff.shopconnect.orders || 0}건</small></div>
         <div class="lines">
@@ -473,7 +514,7 @@ function renderMoney() {
 
   if (det.jobs !== undefined) {
     cards.push(`
-      <div class="money green">
+      <div class="money green clickable" data-go="detailing">
         <h4>세차 · 디테일링 부업 (11월 누계)</h4>
         <div class="big">${Number(det.jobs).toLocaleString("ko-KR")}회 <small>예상 급여 ${won(det.netPay)}</small></div>
         <div class="lines">
@@ -486,6 +527,8 @@ function renderMoney() {
   box.innerHTML = cards.join("") + (f.updatedLabel
     ? `<div class="money"><h4>갱신 기준</h4><div class="lines"><span>${esc(f.updatedLabel)}</span></div></div>`
     : "");
+
+  renderRevenueDetail();
 }
 
 /* 5-6. 피드 */
@@ -576,6 +619,8 @@ function renderMeeting() {
   $("#meetSummary").textContent = arr.length
     ? `${arr.length}개 메시지 · 참여자 4명`
     : "참여자 4명";
+  const mc = $("#meetMsgCount");
+  if (mc) mc.textContent = arr.length;
 
   const room = $("#meetRoom");
   const sig = arr.map(m => `${m.id}:${m.ts}:${m.from}:${m.text}`).join("\u0001");
@@ -748,7 +793,365 @@ $("#meetRoom").addEventListener("click", e => {
 paintSay();
 
 
-/* ── 6. 시작 ─────────────────────────────────────────────── */
+/* ── 6. 홈 · 상세 시트 · 라우팅 ─────────────────────────────── */
+
+const ROUTE_KEY = "hq.route.v1";
+const VIEW_IDS = ["home", "meeting", "tasks", "content", "revenue"];
+const DEFAULT_PANE = { home: "", meeting: "room", tasks: "all", content: "blog", revenue: "all" };
+
+function trunc(s, n) {
+  const t = String(s || "").replace(/\s+/g, " ").trim();
+  return t.length > n ? t.slice(0, n) + "…" : t;
+}
+
+function tsFull(ts) {
+  if (!ts) return "-";
+  const d = new Date(Number(ts));
+  if (Number.isNaN(d.getTime())) return "-";
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/* 6-1. 홈 요약 */
+function renderHome() {
+  const msgs = meetMessages();
+  const last = msgs[msgs.length - 1];
+  const topic = meetTopic().text;
+  const tasks = tasksArr();
+  const doing = tasks.filter(t => t.status === "doing").length;
+  const waiting = tasks.filter(t => t.status === "waiting").length;
+  const done = tasks.filter(t => t.status === "done").length;
+  const blog = blogArr();
+  const pub = blog.filter(b => b.status === "published").length;
+  const draft = blog.filter(b => b.status === "draft").length;
+  const threads = Object.values(state.data?.content?.threads || {});
+  const camps = Object.values(state.data?.content?.campaigns || {});
+  const campsOpen = camps.filter(c => c.status !== "submitted").length;
+  const f = state.data?.finance || {};
+  const aff = f.affiliate || {};
+  const det = f.detailing || {};
+
+  $("#homeGrid").innerHTML = `
+    <button class="home-card meet" data-go="meeting" type="button">
+      <span class="hc-top">💬 합동 회의실</span>
+      <span class="hc-big">${msgs.length}개 메시지</span>
+      <span class="hc-sub">${last
+        ? `${esc(PEOPLE[last.from]?.name || last.from)} · ${clock(last.ts)} — ${esc(trunc(last.text, 34))}`
+        : "아직 대화가 없습니다. 첫 메시지를 남겨 보세요."}</span>
+      <span class="hc-sub">${topic ? `안건 · ${esc(trunc(topic, 30))}` : "안건 미정"}</span>
+      <span class="hc-go">회의실 들어가기 →</span>
+    </button>
+
+    <button class="home-card tasks" data-go="tasks" type="button">
+      <span class="hc-top">📋 업무 보드</span>
+      <span class="hc-big">${doing + waiting}건 남음</span>
+      <span class="hc-sub">진행 중 ${doing} · 대기 중 ${waiting} · 완료 ${done} · 전체 ${tasks.length}건</span>
+      <span class="hc-sub">카드를 누르면 담당자·상태를 바로 바꿀 수 있습니다</span>
+      <span class="hc-go">업무 보드 열기 →</span>
+    </button>
+
+    <button class="home-card content" data-go="content" type="button">
+      <span class="hc-top">📝 콘텐츠 현황</span>
+      <span class="hc-big">${blog.length}편</span>
+      <span class="hc-sub">발행 ${pub} · 임시저장 ${draft}</span>
+      <span class="hc-sub">스레드 ${threads.length}건 · 캠페인 미제출 ${campsOpen}</span>
+      <span class="hc-go">콘텐츠 보기 →</span>
+    </button>
+
+    <button class="home-card revenue" data-go="revenue" type="button">
+      <span class="hc-top">💰 수익 · 장부</span>
+      <span class="hc-big">${won(aff.total?.revenue || 0)}</span>
+      <span class="hc-sub">제휴 순이익 ${won(aff.total?.profit || 0)}</span>
+      <span class="hc-sub">세차·디테일링 예상 급여 ${won(det.netPay || 0)}</span>
+      <span class="hc-go">수익·장부 열기 →</span>
+    </button>
+  `;
+
+  $("#homeStamp").textContent = new Date().toLocaleDateString("ko-KR", {
+    month: "long", day: "numeric", weekday: "short"
+  });
+}
+
+/* 6-2. 수익 상세 */
+function kvRow(k, v) {
+  return `<div class="kv-row"><span class="k">${k}</span><b>${v}</b></div>`;
+}
+
+function avgWon(total, count) {
+  const c = Number(count) || 0;
+  return c ? won(Math.round((Number(total) || 0) / c)) : "-";
+}
+
+function renderRevenueDetail() {
+  const f = state.data?.finance || {};
+  const aff = f.affiliate || {};
+  const c = aff.coupang || {};
+  const s = aff.shopconnect || {};
+  const det = f.detailing || {};
+
+  $("#revCoupang").innerHTML = Object.keys(c).length ? `
+    <div class="sheet-row"><span class="k">수익원</span><span class="v"><b>쿠팡 파트너스</b></span></div>
+    <div class="detail-num">${won(c.revenue)} <small>${c.orders || 0}건</small></div>
+    <div class="kv">
+      ${kvRow("순이익", won(c.profit))}
+      ${kvRow("건당 평균 매출", avgWon(c.revenue, c.orders))}
+      ${kvRow("비고", esc(c.note || "-"))}
+      ${kvRow("데이터 경로", "hq/finance/affiliate/coupang")}
+    </div>
+    <div class="kv-note">값은 DB의 finance 노드에서 갱신됩니다. 12:00 제시 보고 → 13:00 로빈 취합.</div>`
+    : `<div class="empty">쿠팡 파트너스 데이터가 없습니다</div>`;
+
+  $("#revShopconnect").innerHTML = Object.keys(s).length ? `
+    <div class="sheet-row"><span class="k">수익원</span><span class="v"><b>네이버 쇼핑커넥트</b></span></div>
+    <div class="detail-num">${won(s.revenue)} <small>${s.orders || 0}건</small></div>
+    <div class="kv">
+      ${kvRow("세전 수수료", won(s.profit))}
+      ${kvRow("건당 평균 매출", avgWon(s.revenue, s.orders))}
+      ${kvRow("비고", esc(s.note || "-"))}
+      ${kvRow("데이터 경로", "hq/finance/affiliate/shopconnect")}
+    </div>
+    <div class="kv-note">값은 DB의 finance 노드에서 갱신됩니다. 12:00 제리 보고 → 13:00 로빈 취합.</div>`
+    : `<div class="empty">쇼핑커넥트 데이터가 없습니다</div>`;
+
+  const billed = Number(det.billed) || 0;
+  const share = Number(det.partnerShare) || 0;
+  $("#revDetailing").innerHTML = det.jobs !== undefined ? `
+    <div class="sheet-row"><span class="k">수익원</span><span class="v"><b>세차 · 디테일링 부업</b> <span class="hint">11월 누계</span></span></div>
+    <div class="detail-num">${Number(det.jobs).toLocaleString("ko-KR")}회 <small>예상 급여 ${won(det.netPay)}</small></div>
+    <div class="kv">
+      ${kvRow("예상 청구합", won(billed))}
+      ${kvRow("외부 지급 60%", won(share))}
+      ${kvRow("내 몫 40%", won(billed - share))}
+      ${kvRow("건당 평균 청구", avgWon(billed, det.jobs))}
+      ${kvRow("정산 구조", "60/40 정산 · 급여에서 3.3% 공제 추정")}
+      ${kvRow("비고", esc(det.note || "-"))}
+      ${kvRow("데이터 경로", "hq/finance/detailing")}
+    </div>`
+    : `<div class="empty">세차·디테일링 장부가 아직 없습니다</div>`;
+}
+
+/* 6-3. 상세 시트 */
+const sheetEl = $("#sheet");
+let sheetOpen = false;
+
+function openSheet(title, html) {
+  $("#sheetTitle").textContent = title;
+  $("#sheetBody").innerHTML = html;
+  sheetEl.hidden = false;
+  sheetOpen = true;
+  document.documentElement.style.overflow = "hidden";
+}
+
+function closeSheet() {
+  if (!sheetOpen) return;
+  sheetEl.hidden = true;
+  $("#sheetBody").innerHTML = "";
+  sheetOpen = false;
+  document.documentElement.style.overflow = "";
+}
+
+function statusChips(list, cur, act, extra) {
+  return list.map(([k, label]) =>
+    `<button class="chip${k === cur ? " is-on" : ""}" data-act="${act}" ${extra} data-status="${k}" type="button">${label}</button>`
+  ).join("");
+}
+
+function openTaskSheet(id) {
+  const t = tasksArr().find(x => x.id === id);
+  if (!t) return;
+  const ownerOpts = Object.entries(OWNER).map(([k, v]) =>
+    `<option value="${k}"${t.owner === k ? " selected" : ""}>${v}</option>`).join("");
+
+  openSheet("업무 상세", `
+    <div class="sheet-row"><span class="k">업무</span><span class="v"><b>${esc(t.title)}</b></span></div>
+    <div class="sheet-sep"></div>
+    <label class="sheet-row">
+      <span class="k">담당자</span>
+      <select data-act="task-owner" data-id="${t.id}" aria-label="담당자 변경">${ownerOpts}</select>
+    </label>
+    <div class="sheet-row"><span class="k">현재 상태</span><span class="v">${STATUS[t.status] || t.status}</span></div>
+    <div class="sheet-row"><span class="k">최근 갱신</span><span class="v">${tsFull(t.updatedAt || t.createdAt)}</span></div>
+    <div class="sheet-row"><span class="k">등록</span><span class="v">${tsFull(t.createdAt)}</span></div>
+    <div class="sheet-sep"></div>
+    <div class="sheet-label">상태 바꾸기</div>
+    <div class="sheet-actions">
+      ${statusChips(Object.entries(STATUS), t.status, "task-status", `data-id="${t.id}"`)}
+    </div>
+    <div class="sheet-actions" style="justify-content:flex-end">
+      <button class="mini-btn danger" data-act="task-del" data-id="${t.id}" type="button">업무 삭제</button>
+    </div>
+  `);
+}
+
+function openBlogSheet(key) {
+  const b = blogArr().find(x => x.key === key);
+  if (!b) return;
+  openSheet(`${b.no}호 상세`, `
+    <div class="sheet-row"><span class="k">제목</span><span class="v"><b>${esc(b.title)}</b></span></div>
+    <div class="sheet-row"><span class="k">발행일</span><span class="v">${esc(b.date || "-")}</span></div>
+    <div class="sheet-row"><span class="k">현재 상태</span><span class="v">${BLOG_STATUS[b.status] || b.status}</span></div>
+    <div class="sheet-row"><span class="k">최근 갱신</span><span class="v">${tsFull(b.updatedAt)}</span></div>
+    <div class="sheet-sep"></div>
+    <div class="sheet-label">상태 바꾸기</div>
+    <div class="sheet-actions">
+      ${statusChips(Object.entries(BLOG_STATUS), b.status, "blog-status", `data-key="${esc(b.key)}"`)}
+    </div>
+    <div class="kv-note">발행은 사장님이 직접 결정합니다. 카드의 제목을 누르면 바로 수정할 수 있습니다.</div>
+  `);
+}
+
+function openThreadSheet(id) {
+  const arr = Object.entries(state.data?.content?.threads || {}).map(([k, v]) => ({ id: k, ...v }));
+  const s = arr.find(x => x.id === id);
+  if (!s) return;
+  const link = s.url
+    ? `<div class="sheet-row"><span class="k">게시물</span><span class="v"><a class="mini-link" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">열어 보기 ↗</a></span></div>`
+    : `<div class="sheet-row"><span class="k">게시물</span><span class="v">링크 없음</span></div>`;
+  openSheet("스레드 상세", `
+    <div class="sheet-row"><span class="k">제목</span><span class="v"><b>${esc(s.title)}</b></span></div>
+    ${link}
+    <div class="sheet-row"><span class="k">작성일</span><span class="v">${esc(s.date || "-")}</span></div>
+    <div class="sheet-row"><span class="k">분량</span><span class="v">${s.chars ? esc(s.chars) + "자" : "-"}</span></div>
+    <div class="sheet-row"><span class="k">현재 상태</span><span class="v">${THREAD_STATUS[s.status] || s.status || "-"}</span></div>
+    <div class="sheet-sep"></div>
+    <div class="sheet-label">상태 바꾸기</div>
+    <div class="sheet-actions">
+      ${statusChips(Object.entries(THREAD_STATUS), s.status, "thread-status", `data-id="${s.id}"`)}
+    </div>
+  `);
+}
+
+function openCampaignSheet(id) {
+  const arr = Object.entries(state.data?.content?.campaigns || {}).map(([k, v]) => ({ id: k, ...v }));
+  const c = arr.find(x => x.id === id);
+  if (!c) return;
+  const d = dayDiff(c.due);
+  const dLabel = d === null ? "-" : (d === 0 ? "D-DAY" : (d > 0 ? `D-${d}` : `마감 ${Math.abs(d)}일 지남`));
+  openSheet("캠페인 상세", `
+    <div class="sheet-row"><span class="k">캠페인</span><span class="v"><b>${esc(c.name)}</b></span></div>
+    <div class="sheet-row"><span class="k">채널</span><span class="v">${esc(c.channel || "-")}</span></div>
+    <div class="sheet-row"><span class="k">마감</span><span class="v">${esc(c.due || "-")} · <b>${dLabel}</b></span></div>
+    <div class="sheet-row"><span class="k">현재 상태</span><span class="v">${CAMP_STATUS[c.status] || c.status || "-"}</span></div>
+    <div class="sheet-sep"></div>
+    <div class="sheet-label">상태 바꾸기</div>
+    <div class="sheet-actions">
+      ${statusChips(Object.entries(CAMP_STATUS), c.status, "camp-status", `data-id="${c.id}"`)}
+    </div>
+  `);
+}
+
+sheetEl.addEventListener("click", e => {
+  if (e.target.closest("[data-sheet-close]")) { closeSheet(); return; }
+  const btn = e.target.closest("button[data-act]");
+  if (!btn || !db) return;
+  const id = btn.dataset.id;
+  const st = btn.dataset.status;
+
+  if (btn.dataset.act === "task-status") {
+    if (state.data?.tasks?.[id]) Object.assign(state.data.tasks[id], { status: st, updatedAt: Date.now() });
+    update(ref(db, `${ROOT}/tasks/${id}`), { status: st, updatedAt: Date.now() });
+    openTaskSheet(id);
+  } else if (btn.dataset.act === "task-del") {
+    if (confirm("이 업무를 삭제할까요?")) { remove(ref(db, `${ROOT}/tasks/${id}`)); closeSheet(); }
+  } else if (btn.dataset.act === "thread-status") {
+    if (state.data?.content?.threads?.[id]) Object.assign(state.data.content.threads[id], { status: st, updatedAt: Date.now() });
+    update(ref(db, `${ROOT}/content/threads/${id}`), { status: st, updatedAt: Date.now() });
+    openThreadSheet(id);
+  } else if (btn.dataset.act === "camp-status") {
+    if (state.data?.content?.campaigns?.[id]) Object.assign(state.data.content.campaigns[id], { status: st, updatedAt: Date.now() });
+    update(ref(db, `${ROOT}/content/campaigns/${id}`), { status: st, updatedAt: Date.now() });
+    openCampaignSheet(id);
+  } else if (btn.dataset.act === "blog-status") {
+    const key = btn.dataset.key;
+    if (state.data?.content?.blog?.[key]) Object.assign(state.data.content.blog[key], { status: st, updatedAt: Date.now() });
+    update(ref(db, `${ROOT}/content/blog/${key}`), { status: st, updatedAt: Date.now() });
+    openBlogSheet(key);
+  }
+});
+
+sheetEl.addEventListener("change", e => {
+  const sel = e.target.closest('select[data-act="task-owner"]');
+  if (!sel || !db) return;
+  const id = sel.dataset.id;
+  if (state.data?.tasks?.[id]) Object.assign(state.data.tasks[id], { owner: sel.value, updatedAt: Date.now() });
+  update(ref(db, `${ROOT}/tasks/${id}`), { owner: sel.value, updatedAt: Date.now() });
+});
+
+/* 6-4. 라우팅 */
+function normalizeRoute(raw) {
+  const s = String(raw || "").replace(/^#\/?/, "").trim();
+  const [v0, p0] = s.split("/");
+  const view = VIEW_IDS.includes(v0) ? v0 : "home";
+  const panes = $$(`.view[data-view="${view}"] .subnav .sub-btn`).map(b => b.dataset.pane);
+  const pane = panes.includes(p0) ? p0 : (DEFAULT_PANE[view] || "");
+  return { view, pane };
+}
+
+function applyRoute() {
+  const { view, pane } = normalizeRoute(location.hash);
+
+  $$(".view").forEach(sec => { sec.hidden = sec.dataset.view !== view; });
+  $$("#mainNav .nav-btn").forEach(b => {
+    const on = b.dataset.view === view;
+    b.classList.toggle("is-on", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+
+  const sec = $(`.view[data-view="${view}"]`);
+  if (sec) {
+    $$(".pane", sec).forEach(p => { p.hidden = p.dataset.pane !== pane; });
+    $$(".subnav .sub-btn", sec).forEach(b => b.classList.toggle("is-on", b.dataset.pane === pane));
+  }
+
+  localStorage.setItem(ROUTE_KEY, `#${view}${pane ? "/" + pane : ""}`);
+  window.scrollTo(0, 0);
+
+  if (view === "meeting") {
+    const room = $("#meetRoom");
+    if (room && pane === "room") room.scrollTop = room.scrollHeight;
+  }
+}
+
+function go(view, pane) {
+  const target = `#${view}${pane ? "/" + pane : ""}`;
+  if (location.hash === target) applyRoute();
+  else location.hash = target;
+}
+
+$("#mainNav").addEventListener("click", e => {
+  const b = e.target.closest(".nav-btn");
+  if (!b) return;
+  go(b.dataset.view, DEFAULT_PANE[b.dataset.view]);
+});
+
+document.addEventListener("click", e => {
+  const b = e.target.closest(".subnav .sub-btn");
+  if (!b) return;
+  const sec = b.closest(".view");
+  if (sec) go(sec.dataset.view, b.dataset.pane);
+});
+
+$("#homeGrid").addEventListener("click", e => {
+  const c = e.target.closest("[data-go]");
+  if (c) go(c.dataset.go, DEFAULT_PANE[c.dataset.go]);
+});
+
+$("#moneyGrid").addEventListener("click", e => {
+  const c = e.target.closest("[data-go]");
+  if (c) go("revenue", c.dataset.go);
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && sheetOpen) closeSheet();
+});
+
+window.addEventListener("hashchange", applyRoute);
+
+/* ── 7. 시작 ─────────────────────────────────────────────── */
+
+if (!location.hash && localStorage.getItem(ROUTE_KEY)) {
+  location.hash = localStorage.getItem(ROUTE_KEY);
+}
+applyRoute();
 
 if (localStorage.getItem(AUTH_KEY) === "1") {
   unlock();

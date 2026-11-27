@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="dark light">
 <title>합동 비서실</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏢%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=20261127b">
+<link rel="stylesheet" href="style.css?v=20261127c">
 </head>
 <body>
 
@@ -42,147 +42,233 @@
     </div>
   </header>
 
+  <!-- 대메뉴 -->
+  <nav class="mainnav" id="mainNav" role="tablist" aria-label="대메뉴">
+    <button class="nav-btn" data-view="home" role="tab" type="button"><span class="ico">🏠</span><span class="lbl">홈</span></button>
+    <button class="nav-btn" data-view="meeting" role="tab" type="button"><span class="ico">💬</span><span class="lbl">회의실</span></button>
+    <button class="nav-btn" data-view="tasks" role="tab" type="button"><span class="ico">📋</span><span class="lbl">업무</span></button>
+    <button class="nav-btn" data-view="content" role="tab" type="button"><span class="ico">📝</span><span class="lbl">콘텐츠</span></button>
+    <button class="nav-btn" data-view="revenue" role="tab" type="button"><span class="ico">💰</span><span class="lbl">수익·장부</span></button>
+  </nav>
+
   <main class="wrap">
 
-    <!-- 0. 합동 회의실 -->
-    <section class="card meet" id="meeting">
-      <div class="card-head">
+    <!-- ── 홈 ─────────────────────────────────────────────── -->
+    <section class="view" data-view="home">
+      <div class="view-head">
+        <h2>🏠 오늘의 비서실</h2>
+        <span class="hint" id="homeStamp"></span>
+      </div>
+      <div class="home-grid" id="homeGrid"></div>
+      <div class="card home-tip">
+        <p>대메뉴에서 영역을 고르면 그 안의 소메뉴만 보입니다. 회의실은 사장님·로빈·제시·제리 네 명이 실시간으로 함께 씁니다.</p>
+      </div>
+    </section>
+
+    <!-- ── 회의실 ─────────────────────────────────────────── -->
+    <section class="view" data-view="meeting" hidden>
+      <div class="view-head">
         <h2>💬 합동 회의실</h2>
         <span class="hint" id="meetSummary">참여자 4명</span>
       </div>
 
-      <div class="meet-people" id="meetPeople" aria-label="회의실 참여자"></div>
-
-      <div class="meet-topic">
-        <span class="meet-topic-label">안건</span>
-        <span class="meet-topic-text" id="meetTopicText">안건을 정해 주세요</span>
-        <span class="meet-topic-by" id="meetTopicWho"></span>
-        <button class="mini-btn" id="meetTopicEdit" type="button" title="안건 수정">✏️ 수정</button>
+      <div class="subnav" data-subnav="meeting">
+        <button class="sub-btn is-on" data-pane="room" type="button">대화 <b class="pill" id="meetMsgCount">0</b></button>
+        <button class="sub-btn" data-pane="feed" type="button">메모 피드</button>
       </div>
 
-      <div class="meet-room" id="meetRoom" role="log" aria-live="polite" aria-label="회의 메시지"></div>
+      <div class="pane" data-pane="room">
+        <div class="card">
+          <div class="meet-people" id="meetPeople" aria-label="회의실 참여자"></div>
 
-      <form id="meetForm" class="meet-form" autocomplete="off">
-        <div class="meet-say" id="meetSay" role="group" aria-label="발화자 선택">
-          <span class="meet-say-label">말하는 사람</span>
-          <button class="chip is-on" data-say="boss" type="button">👑 사장님</button>
-          <button class="chip" data-say="robin" type="button">🦉 로빈</button>
-          <button class="chip" data-say="jessi" type="button">✨ 제시</button>
-          <button class="chip" data-say="jerry" type="button">🍀 제리</button>
+          <div class="meet-topic">
+            <span class="meet-topic-label">안건</span>
+            <span class="meet-topic-text" id="meetTopicText">안건을 정해 주세요</span>
+            <span class="meet-topic-by" id="meetTopicWho"></span>
+            <button class="mini-btn" id="meetTopicEdit" type="button" title="안건 수정">✏️ 수정</button>
+          </div>
+
+          <div class="meet-room" id="meetRoom" role="log" aria-live="polite" aria-label="회의 메시지"></div>
+
+          <form id="meetForm" class="meet-form" autocomplete="off">
+            <div class="meet-say" id="meetSay" role="group" aria-label="발화자 선택">
+              <span class="meet-say-label">말하는 사람</span>
+              <button class="chip is-on" data-say="boss" type="button">👑 사장님</button>
+              <button class="chip" data-say="robin" type="button">🦉 로빈</button>
+              <button class="chip" data-say="jessi" type="button">✨ 제시</button>
+              <button class="chip" data-say="jerry" type="button">🍀 제리</button>
+            </div>
+            <div class="meet-input">
+              <textarea id="meetText" rows="1" placeholder="사장님으로 말하기 (Enter 전송 · Shift+Enter 줄바꿈)" aria-label="회의 메시지" required></textarea>
+              <button class="btn primary" type="submit">보내기</button>
+            </div>
+          </form>
         </div>
-        <div class="meet-input">
-          <textarea id="meetText" rows="1" placeholder="사장님으로 말하기 (Enter 전송 · Shift+Enter 줄바꿈)" aria-label="회의 메시지" required></textarea>
-          <button class="btn primary" type="submit">보내기</button>
+      </div>
+
+      <div class="pane" data-pane="feed" hidden>
+        <div class="card">
+          <div class="card-head">
+            <h3>📨 비서실 메모 · 전달 피드</h3>
+            <span class="hint">새로고침 없이 모든 기기에 즉시 표시됩니다</span>
+          </div>
+
+          <form id="feedForm" class="feed-form">
+            <select id="feedFrom" aria-label="보내는 사람">
+              <option value="boss">사장님</option>
+              <option value="robin" selected>로빈</option>
+              <option value="jessi">제시</option>
+              <option value="jerry">제리</option>
+            </select>
+            <textarea id="feedText" rows="2" placeholder="메모나 지시사항을 남기세요 (Ctrl+Enter 전송)" aria-label="메모 내용" required></textarea>
+            <button class="btn primary" type="submit">보내기</button>
+          </form>
+
+          <div class="feed" id="feedList"></div>
         </div>
-      </form>
+      </div>
     </section>
 
-    <!-- 1. 실시간 업무 보드 -->
-    <section class="card" id="board">
-      <div class="card-head">
-        <h2>📋 실시간 업무 보드</h2>
+    <!-- ── 업무 보드 ──────────────────────────────────────── -->
+    <section class="view" data-view="tasks" id="tasksView" hidden>
+      <div class="view-head">
+        <h2>📋 업무 보드</h2>
         <span class="hint" id="taskSummary"></span>
       </div>
 
-      <div class="filters" id="ownerFilters" role="tablist" aria-label="담당자 필터">
-        <button class="chip is-on" data-owner="all" type="button">전체</button>
-        <button class="chip" data-owner="robin" type="button">로빈</button>
-        <button class="chip" data-owner="jessi" type="button">제시</button>
-        <button class="chip" data-owner="jerry" type="button">제리</button>
-        <button class="chip" data-owner="boss" type="button">사장님</button>
+      <div class="subnav" data-subnav="tasks">
+        <button class="sub-btn is-on" data-pane="all" type="button">전체 <b class="pill" data-tabcount="all">0</b></button>
+        <button class="sub-btn" data-pane="doing" type="button">진행 중 <b class="pill" data-tabcount="doing">0</b></button>
+        <button class="sub-btn" data-pane="waiting" type="button">대기 중 <b class="pill" data-tabcount="waiting">0</b></button>
+        <button class="sub-btn" data-pane="done" type="button">완료 <b class="pill" data-tabcount="done">0</b></button>
       </div>
 
-      <form id="taskForm" class="row-form">
-        <input id="taskTitle" type="text" placeholder="새 업무를 입력하세요" aria-label="업무 제목" required>
-        <select id="taskOwner" aria-label="담당자">
-          <option value="robin">로빈</option>
-          <option value="jessi">제시</option>
-          <option value="jerry">제리</option>
-          <option value="boss">사장님</option>
-        </select>
-        <select id="taskStatus" aria-label="상태">
-          <option value="doing">진행 중</option>
-          <option value="waiting">대기 중</option>
-          <option value="done">완료</option>
-        </select>
-        <button class="btn primary" type="submit">추가</button>
-      </form>
+      <div class="pane" data-pane="all">
+        <div class="card">
+          <div class="filters" id="ownerFilters" role="tablist" aria-label="담당자 필터">
+            <button class="chip is-on" data-owner="all" type="button">전체</button>
+            <button class="chip" data-owner="robin" type="button">로빈</button>
+            <button class="chip" data-owner="jessi" type="button">제시</button>
+            <button class="chip" data-owner="jerry" type="button">제리</button>
+            <button class="chip" data-owner="boss" type="button">사장님</button>
+          </div>
 
-      <div class="kanban" id="kanban">
-        <div class="col" data-status="doing">
-          <div class="col-head"><span class="dot doing"></span>진행 중 <span class="count" data-count="doing">0</span></div>
-          <div class="col-body" data-list="doing"></div>
+          <form id="taskForm" class="row-form">
+            <input id="taskTitle" type="text" placeholder="새 업무를 입력하세요" aria-label="업무 제목" required>
+            <select id="taskOwner" aria-label="담당자">
+              <option value="robin">로빈</option>
+              <option value="jessi">제시</option>
+              <option value="jerry">제리</option>
+              <option value="boss">사장님</option>
+            </select>
+            <select id="taskStatus" aria-label="상태">
+              <option value="doing">진행 중</option>
+              <option value="waiting">대기 중</option>
+              <option value="done">완료</option>
+            </select>
+            <button class="btn primary" type="submit">추가</button>
+          </form>
+
+          <div class="kanban" id="kanban">
+            <div class="col" data-status="doing">
+              <div class="col-head"><span class="dot doing"></span>진행 중 <span class="count" data-count="doing">0</span></div>
+              <div class="col-body" data-list="doing"></div>
+            </div>
+            <div class="col" data-status="waiting">
+              <div class="col-head"><span class="dot waiting"></span>대기 중 <span class="count" data-count="waiting">0</span></div>
+              <div class="col-body" data-list="waiting"></div>
+            </div>
+            <div class="col" data-status="done">
+              <div class="col-head"><span class="dot done"></span>완료 <span class="count" data-count="done">0</span></div>
+              <div class="col-body" data-list="done"></div>
+            </div>
+          </div>
         </div>
-        <div class="col" data-status="waiting">
-          <div class="col-head"><span class="dot waiting"></span>대기 중 <span class="count" data-count="waiting">0</span></div>
-          <div class="col-body" data-list="waiting"></div>
+      </div>
+
+      <div class="pane" data-pane="doing" hidden>
+        <div class="card">
+          <div class="card-head"><h3><span class="dot doing"></span> 진행 중 업무</h3><span class="hint">카드를 누르면 상세</span></div>
+          <div class="status-list" data-status-list="doing"></div>
         </div>
-        <div class="col" data-status="done">
-          <div class="col-head"><span class="dot done"></span>완료 <span class="count" data-count="done">0</span></div>
-          <div class="col-body" data-list="done"></div>
+      </div>
+      <div class="pane" data-pane="waiting" hidden>
+        <div class="card">
+          <div class="card-head"><h3><span class="dot waiting"></span> 대기 중 업무</h3><span class="hint">카드를 누르면 상세</span></div>
+          <div class="status-list" data-status-list="waiting"></div>
+        </div>
+      </div>
+      <div class="pane" data-pane="done" hidden>
+        <div class="card">
+          <div class="card-head"><h3><span class="dot done"></span> 완료 업무</h3><span class="hint">카드를 누르면 상세</span></div>
+          <div class="status-list" data-status-list="done"></div>
         </div>
       </div>
     </section>
 
-    <!-- 2. 콘텐츠 현황판 -->
-    <section class="card" id="content">
-      <div class="card-head">
-        <h2>🗂 콘텐츠 현황판</h2>
+    <!-- ── 콘텐츠 현황 ────────────────────────────────────── -->
+    <section class="view" data-view="content" hidden>
+      <div class="view-head">
+        <h2>📝 콘텐츠 현황</h2>
         <span class="hint" id="blogSummary"></span>
       </div>
 
-      <div class="sub">
-        <div class="sub-head">
-          <h3>네이버 블로그 <span class="tag">eric_pm</span></h3>
-          <div class="filters small" id="blogFilters">
-            <button class="chip is-on" data-blog="all" type="button">전체</button>
-            <button class="chip" data-blog="published" type="button">발행 완료</button>
-            <button class="chip" data-blog="draft" type="button">임시저장</button>
-          </div>
-        </div>
-        <div class="blog-list" id="blogList"></div>
+      <div class="subnav" data-subnav="content">
+        <button class="sub-btn is-on" data-pane="blog" type="button">네이버 블로그 <b class="pill" id="blogCount">0</b></button>
+        <button class="sub-btn" data-pane="threads" type="button">스레드 <b class="pill" id="threadCount">0</b></button>
+        <button class="sub-btn" data-pane="campaigns" type="button">캠페인 마감 <b class="pill" id="campaignCount">0</b></button>
       </div>
 
-      <div class="two-col">
-        <div class="sub">
+      <div class="pane" data-pane="blog">
+        <div class="card">
+          <div class="sub-head">
+            <h3>네이버 블로그 <span class="tag">eric_pm</span></h3>
+            <div class="filters small" id="blogFilters">
+              <button class="chip is-on" data-blog="all" type="button">전체</button>
+              <button class="chip" data-blog="published" type="button">발행 완료</button>
+              <button class="chip" data-blog="draft" type="button">임시저장</button>
+            </div>
+          </div>
+          <div class="blog-list tall" id="blogList"></div>
+        </div>
+      </div>
+
+      <div class="pane" data-pane="threads" hidden>
+        <div class="card">
           <div class="sub-head"><h3>스레드 <span class="tag">@eric_yiman</span></h3></div>
           <div class="mini-list" id="threadList"></div>
         </div>
-        <div class="sub">
+      </div>
+
+      <div class="pane" data-pane="campaigns" hidden>
+        <div class="card">
           <div class="sub-head"><h3>캠페인 마감</h3></div>
           <div class="mini-list" id="campaignList"></div>
         </div>
       </div>
     </section>
 
-    <!-- 3. 수익 · 장부 -->
-    <section class="card" id="finance">
-      <div class="card-head">
-        <h2>💰 수익 · 장부 요약</h2>
+    <!-- ── 수익 · 장부 ─────────────────────────────────────── -->
+    <section class="view" data-view="revenue" hidden>
+      <div class="view-head">
+        <h2>💰 수익 · 장부</h2>
         <span class="hint">11월 누계 · 조회 시점 기준</span>
       </div>
-      <div class="money-grid" id="moneyGrid"></div>
-    </section>
 
-    <!-- 4. 메모 / 전달 피드 -->
-    <section class="card" id="feedSection">
-      <div class="card-head">
-        <h2>💬 비서실 메모 · 전달 피드</h2>
-        <span class="hint">새로고침 없이 모든 기기에 즉시 표시됩니다</span>
+      <div class="subnav" data-subnav="revenue">
+        <button class="sub-btn is-on" data-pane="all" type="button">전체 요약</button>
+        <button class="sub-btn" data-pane="coupang" type="button">쿠팡 파트너스</button>
+        <button class="sub-btn" data-pane="shopconnect" type="button">쇼핑커넥트</button>
+        <button class="sub-btn" data-pane="detailing" type="button">세차·디테일링</button>
       </div>
 
-      <form id="feedForm" class="feed-form">
-        <select id="feedFrom" aria-label="보내는 사람">
-          <option value="boss">사장님</option>
-          <option value="robin" selected>로빈</option>
-          <option value="jessi">제시</option>
-          <option value="jerry">제리</option>
-        </select>
-        <textarea id="feedText" rows="2" placeholder="메모나 지시사항을 남기세요 (Ctrl+Enter 전송)" aria-label="메모 내용" required></textarea>
-        <button class="btn primary" type="submit">보내기</button>
-      </form>
+      <div class="pane" data-pane="all">
+        <div class="money-grid" id="moneyGrid"></div>
+      </div>
 
-      <div class="feed" id="feedList"></div>
+      <div class="pane" data-pane="coupang" hidden><div class="card detail-card" id="revCoupang"></div></div>
+      <div class="pane" data-pane="shopconnect" hidden><div class="card detail-card" id="revShopconnect"></div></div>
+      <div class="pane" data-pane="detailing" hidden><div class="card detail-card" id="revDetailing"></div></div>
     </section>
 
     <footer class="foot">
@@ -193,6 +279,18 @@
   </main>
 </div>
 
-<script type="module" src="app.js?v=20261127b"></script>
+<!-- ── 상세 시트 ───────────────────────────────────────────── -->
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-backdrop" data-sheet-close></div>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-head">
+      <h3 id="sheetTitle">상세</h3>
+      <button class="icon-btn" id="sheetClose" type="button" data-sheet-close aria-label="닫기">✕</button>
+    </div>
+    <div class="sheet-body" id="sheetBody"></div>
+  </div>
+</div>
+
+<script type="module" src="app.js?v=20261127c"></script>
 </body>
 </html>
