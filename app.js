@@ -266,7 +266,7 @@ $("#kanban").addEventListener("change", e => {
 function blogArr() {
   const b = state.data?.content?.blog || {};
   return Object.entries(b)
-    .map(([k, v]) => ({ no: Number(v.no ?? k), ...v }))
+    .map(([k, v]) => ({ key: k, ...v, no: Number(v.no ?? k.replace(/\D/g, "")) }))
     .sort((a, b2) => a.no - b2.no);
 }
 
@@ -290,11 +290,11 @@ function renderBlog() {
       `<option value="${k}"${b.status === k ? " selected" : ""}>${v}</option>`).join("");
     const date = b.date ? String(b.date).slice(5).replace("-", "/") : "";
     return `
-      <div class="blog-row ${cls}" data-no="${b.no}">
+      <div class="blog-row ${cls}" data-key="${esc(b.key)}">
         <span class="blog-no">${b.no}</span>
-        <span class="blog-title" data-act="edit-title" data-no="${b.no}" title="클릭해서 제목 수정">${esc(b.title)}</span>
+        <span class="blog-title" data-act="edit-title" data-key="${esc(b.key)}" title="클릭해서 제목 수정">${esc(b.title)}</span>
         <span class="blog-date">${esc(date)}</span>
-        <select data-act="blog-status" data-no="${b.no}" aria-label="${b.no}호 상태">${opts}</select>
+        <select data-act="blog-status" data-key="${esc(b.key)}" aria-label="${b.no}호 상태">${opts}</select>
       </div>`;
   }).join("");
 }
@@ -310,14 +310,14 @@ $("#blogFilters").addEventListener("click", e => {
 $("#blogList").addEventListener("change", e => {
   const sel = e.target.closest('select[data-act="blog-status"]');
   if (!sel || !db) return;
-  update(ref(db, `${ROOT}/content/blog/${sel.dataset.no}`), { status: sel.value, updatedAt: Date.now() });
+  update(ref(db, `${ROOT}/content/blog/${sel.dataset.key}`), { status: sel.value, updatedAt: Date.now() });
 });
 
 $("#blogList").addEventListener("click", e => {
   const span = e.target.closest('[data-act="edit-title"]');
   if (!span || !db) return;
   if (span.dataset.editing) return;
-  const no = span.dataset.no;
+  const key = span.dataset.key;
   const original = span.textContent;
   span.dataset.editing = "1";
   span.innerHTML = `<input type="text" value="${esc(original)}" style="width:100%" aria-label="제목 수정">`;
@@ -329,7 +329,7 @@ $("#blogList").addEventListener("click", e => {
     const v = input.value.trim();
     span.dataset.editing = "";
     if (save && v && v !== original) {
-      update(ref(db, `${ROOT}/content/blog/${no}`), { title: v, updatedAt: Date.now() });
+      update(ref(db, `${ROOT}/content/blog/${key}`), { title: v, updatedAt: Date.now() });
     } else {
       renderBlog();
     }
