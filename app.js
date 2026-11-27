@@ -455,6 +455,14 @@ function blogArr() {
     .sort((a, b2) => a.no - b2.no);
 }
 
+/* 글의 공개 주소 — url 필드가 없으면 logNo로 조립합니다. */
+function blogUrl(b) {
+  if (!b) return "";
+  if (b.url) return String(b.url);
+  if (b.logNo) return `https://blog.naver.com/eric_pm/${b.logNo}`;
+  return "";
+}
+
 function renderBlog() {
   const all = blogArr();
   const pub = all.filter(b => b.status === "published").length;
@@ -476,11 +484,16 @@ function renderBlog() {
     const opts = Object.entries(BLOG_STATUS).map(([k, v]) =>
       `<option value="${k}"${b.status === k ? " selected" : ""}>${v}</option>`).join("");
     const date = b.date ? String(b.date).slice(5).replace("-", "/") : "";
+    const url = blogUrl(b);
+    const title = url
+      ? `<a class="blog-title" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="네이버 블로그에서 열기">${esc(b.title)}</a>`
+      : `<span class="blog-title" title="아직 공개 글이 없습니다 · 눌러서 상세 보기">${esc(b.title)}</span>`;
     return `
-      <div class="blog-row ${cls}" data-key="${esc(b.key)}">
+      <div class="blog-row ${cls}" data-key="${esc(b.key)}" data-url="${esc(url)}"${url ? ' title="누르면 네이버 블로그 글이 새 탭에서 열립니다"' : ""}>
         <span class="blog-no">${b.no}</span>
-        <span class="blog-title" data-act="edit-title" data-key="${esc(b.key)}" title="클릭해서 제목 수정">${esc(b.title)}</span>
+        ${title}
         <span class="blog-date">${esc(date)}</span>
+        <button class="mini-btn blog-memo" data-act="blog-memo" data-key="${esc(b.key)}" type="button" aria-label="${b.no}호 메모·상태 열기" title="메모 · 상태 보기">${url ? "메모" : "상세"}</button>
         <select data-act="blog-status" data-key="${esc(b.key)}" aria-label="${b.no}호 상태">${opts}</select>
       </div>`;
   }).join("");
@@ -500,39 +513,25 @@ $("#blogList").addEventListener("change", e => {
   update(ref(db, `${ROOT}/content/blog/${sel.dataset.key}`), { status: sel.value, updatedAt: Date.now() });
 });
 
+/* 글 행 클릭 = 네이버 블로그 글 바로가기. 메모·상태는 우측 '메모' 버튼으로 엽니다. */
 $("#blogList").addEventListener("click", e => {
-  if (e.target.closest("select, input") || e.target.closest('[data-act="edit-title"]')) return;
+  const memo = e.target.closest('[data-act="blog-memo"]');
+  if (memo) {
+    e.preventDefault();
+    e.stopPropagation();
+    openBlogSheet(memo.dataset.key);
+    return;
+  }
+  if (e.target.closest("select, input")) return;
+  if (e.target.closest("a.blog-title")) return; /* 새 탭 링크는 브라우저가 그대로 엽니다 */
   const row = e.target.closest(".blog-row");
-  if (row) openBlogSheet(row.dataset.key);
-});
-
-$("#blogList").addEventListener("click", e => {
-  const span = e.target.closest('[data-act="edit-title"]');
-  if (!span || !db) return;
-  if (span.dataset.editing) return;
-  const key = span.dataset.key;
-  const original = span.textContent;
-  span.dataset.editing = "1";
-  span.innerHTML = `<input type="text" value="${esc(original)}" style="width:100%" aria-label="제목 수정">`;
-  const input = span.querySelector("input");
-  input.focus();
-  input.setSelectionRange(input.value.length, input.value.length);
-
-  const finish = (save) => {
-    const v = input.value.trim();
-    span.dataset.editing = "";
-    if (save && v && v !== original) {
-      update(ref(db, `${ROOT}/content/blog/${key}`), { title: v, updatedAt: Date.now() });
-    } else {
-      renderBlog();
-    }
-  };
-
-  input.addEventListener("keydown", ev => {
-    if (ev.key === "Enter") { ev.preventDefault(); finish(true); }
-    if (ev.key === "Escape") { ev.preventDefault(); finish(false); }
-  });
-  input.addEventListener("blur", () => finish(true));
+  if (!row) return;
+  const url = row.dataset.url;
+  if (url) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  openBlogSheet(row.dataset.key);
 });
 
 /* 5-3. 스레드 */
@@ -550,10 +549,13 @@ function renderThreads() {
     const opts = Object.entries(THREAD_STATUS).map(([k, v]) =>
       `<option value="${k}"${s.status === k ? " selected" : ""}>${v}</option>`).join("");
     const link = s.url ? `<a class="mini-link" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">게시물 열기 ↗</a>` : "";
+    const title = s.url
+      ? `<a class="mini-title mini-title-link" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="스레드 게시물 열기">${esc(s.title)}</a>`
+      : `<span class="mini-title">${esc(s.title)}</span>`;
     return `
       <div class="mini-item" data-id="${s.id}">
         <div class="mini-top">
-          <span class="mini-title">${esc(s.title)}</span>
+          ${title}
           <select data-act="thread-status" data-id="${s.id}" aria-label="스레드 상태">${opts}</select>
         </div>
         <div class="mini-sub">
@@ -2434,8 +2436,19 @@ function openTaskSheet(id, savedAt, flash) {
 function openBlogSheet(key) {
   const b = blogArr().find(x => x.key === key);
   if (!b) return;
+  const url = blogUrl(b);
+  const link = url
+    ? `<div class="sheet-row"><span class="k">블로그 글</span><span class="v"><a class="mini-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">네이버에서 열기 ↗</a></span></div>`
+    : `<div class="sheet-row"><span class="k">블로그 글</span><span class="v">공개 글 없음 (임시저장)</span></div>`;
   openSheet(`${b.no}호 상세`, `
-    <div class="sheet-row"><span class="k">제목</span><span class="v"><b>${esc(b.title)}</b></span></div>
+    <div class="sheet-field">
+      <span class="sheet-label">제목</span>
+      <input type="text" maxlength="200" value="${esc(b.title)}" data-blog-title="${esc(b.key)}" aria-label="제목 수정">
+      <div class="sheet-save">
+        <button class="mini-btn" data-act="save-blog-title" data-key="${esc(b.key)}" type="button">제목 저장</button>
+      </div>
+    </div>
+    ${link}
     <div class="sheet-row"><span class="k">발행일</span><span class="v">${esc(b.date || "-")}</span></div>
     <div class="sheet-row"><span class="k">현재 상태</span><span class="v">${BLOG_STATUS[b.status] || b.status}</span></div>
     <div class="sheet-row"><span class="k">최근 갱신</span><span class="v">${tsFull(b.updatedAt)}</span></div>
@@ -2445,7 +2458,7 @@ function openBlogSheet(key) {
       ${statusChips(Object.entries(BLOG_STATUS), b.status, "blog-status", `data-key="${esc(b.key)}"`)}
     </div>
     ${memoBlock(`${ROOT}/content/blog/${b.key}`, b.note, "메모 · 집필 내역")}
-    <div class="kv-note">발행은 사장님이 직접 결정합니다. 카드의 제목을 누르면 바로 수정할 수 있습니다.</div>
+    <div class="kv-note">글 행을 누르면 네이버 블로그 글이 새 탭에서 열립니다. 제목·메모·상태는 이 화면에서 고칠 수 있어요. 발행은 사장님이 직접 결정합니다.</div>
   `);
 }
 
@@ -2627,6 +2640,15 @@ sheetEl.addEventListener("click", e => {
     update(ref(db, `${ROOT}/tasks/${id}`), { ...v, updatedAt: now });
     renderTasks();
     openTaskSheet(id, now);
+  } else if (btn.dataset.act === "save-blog-title") {
+    const key = btn.dataset.key;
+    const field = sheetEl.querySelector(`input[data-blog-title="${key}"]`);
+    const v = field ? field.value.trim() : "";
+    if (!db || !v) return;
+    update(ref(db, `${ROOT}/content/blog/${key}`), { title: v, updatedAt: Date.now() });
+    btn.textContent = "저장했습니다 ✓";
+    renderBlog();
+    setTimeout(() => { btn.textContent = "제목 저장"; }, 1800);
   } else if (btn.dataset.act === "save-memo") {
     const path = btn.dataset.path;
     const field = [...sheetEl.querySelectorAll("textarea[data-memo-path]")]
