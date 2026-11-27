@@ -673,7 +673,7 @@ function renderMoney() {
         <h4>세차 · 디테일링 부업 (11월 누계)</h4>
         <div class="big">${Number(det.jobs).toLocaleString("ko-KR")}회 <small>예상 급여 ${won(det.netPay)}</small></div>
         <div class="lines">
-          <span>예상 청구합 <b>${won(det.billed)}</b> · 외부 지급 60% ${won(det.partnerShare)}</span>
+          <span>예상 청구합 <b>${won(det.billed)}</b> · 내 몫 60% ${won(det.partnerShare)} · 업체 40% ${won((det.billed || 0) - (det.partnerShare || 0))}</span>
           <span>${esc(det.note || "")}</span>
         </div>
       </div>`);
@@ -2274,16 +2274,17 @@ function renderRevenueDetail() {
     : `<div class="empty">쇼핑커넥트 데이터가 없습니다</div>`;
 
   const billed = Number(det.billed) || 0;
+  // DB의 partnerShare 필드에는 사장님(박이만 님) 몫 60% 금액이 들어 있습니다(키 이름과 달리 업체 몫이 아님).
   const share = Number(det.partnerShare) || 0;
   $("#revDetailing").innerHTML = det.jobs !== undefined ? `
     <div class="sheet-row"><span class="k">수익원</span><span class="v"><b>세차 · 디테일링 부업</b> <span class="hint">11월 누계</span></span></div>
     <div class="detail-num">${Number(det.jobs).toLocaleString("ko-KR")}회 <small>예상 급여 ${won(det.netPay)}</small></div>
     <div class="kv">
       ${kvRow("예상 청구합", won(billed))}
-      ${kvRow("외부 지급 60%", won(share))}
-      ${kvRow("내 몫 40%", won(billed - share))}
+      ${kvRow("내 몫 60%", won(share))}
+      ${kvRow("세차 업체 사장님 몫 40%", won(billed - share))}
       ${kvRow("건당 평균 청구", avgWon(billed, det.jobs))}
-      ${kvRow("정산 구조", "60/40 정산 · 급여에서 3.3% 공제 추정")}
+      ${kvRow("정산 구조", "내 몫 60% · 세차 업체 40% / 급여에서 3.3% 공제 추정")}
       ${kvRow("비고", esc(det.note || "-"))}
       ${kvRow("데이터 경로", "hq/finance/detailing")}
     </div>`
