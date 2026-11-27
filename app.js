@@ -670,6 +670,55 @@ function renderMeeting() {
   }
 }
 
+/* 비서별 사용량 (hq/usage/{robin|jessi|jerry}) */
+function usageToneOf(pct) {
+  if (pct == null) return "none";
+  if (pct >= 85) return "danger";
+  if (pct >= 60) return "warn";
+  return "ok";
+}
+
+function usageLabelOf(pct) {
+  if (pct == null) return "미입력";
+  if (pct >= 85) return "한도 경고";
+  if (pct >= 60) return "한도 주의";
+  return "여유";
+}
+
+function usageData(k) {
+  const u = state.data?.usage?.[k];
+  const raw = u && u.usedPct;
+  const num = raw == null || raw === "" ? NaN : Number(raw);
+  const pct = Number.isFinite(num) ? Math.max(0, Math.min(100, Math.round(num))) : null;
+  let label = u && u.label != null && String(u.label).trim()
+    ? String(u.label).trim()
+    : "";
+  if (!label) label = usageLabelOf(pct);
+  /* 숫자가 있는데 라벨이 "미입력"으로 남아 있으면 단계 라벨로 보여 줍니다. */
+  if (pct != null && label === "미입력") label = usageLabelOf(pct);
+  return {
+    pct,
+    tone: usageToneOf(pct),
+    label,
+    note: u && u.note != null ? String(u.note) : "",
+    updatedAt: Number(u && u.updatedAt) || 0
+  };
+}
+
+function donutSvg(pct, tone) {
+  const C = 2 * Math.PI * 18;
+  const off = pct == null ? C : C * (1 - pct / 100);
+  return `
+    <span class="donut${pct == null ? " is-empty" : ""}" aria-hidden="true">
+      <svg viewBox="0 0 44 44">
+        <circle class="donut-track" cx="22" cy="22" r="18"></circle>
+        <circle class="donut-bar" cx="22" cy="22" r="18" transform="rotate(-90 22 22)"
+                stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"></circle>
+      </svg>
+      <span class="donut-pct">${pct == null ? "--" : pct + "%"}</span>
+    </span>`;
+}
+
 function renderMeetingPeople(arr) {
   const lastBy = {};
   arr.forEach(m => { lastBy[m.from] = m.ts; });
@@ -678,19 +727,43 @@ function renderMeetingPeople(arr) {
     const p = PEOPLE[k];
     const ts = lastBy[k];
     const status = k === "boss" ? "접속 중" : "참여 중";
-    const sub =
-      (k === "boss" ? status : `${p.role} · ${status}`) + (ts ? ` · ${clock(ts)}` : "");
-    return `
-      <div class="person ${k}" title="${esc(p.name)} · ${esc(sub)}">
+
+    if (k === "boss") {
+      const sub = status + (ts ? ` · ${clock(ts)}` : "");
+      return `
+      <div class="person boss" title="${esc(p.name)} · ${esc(sub)}">
         <span class="avatar" aria-hidden="true">${p.emoji}</span>
         <span class="person-text">
-          <b>${esc(p.name)}</b>
+          <b>${esc(p.name)} <span class="live" aria-hidden="true"></span></b>
           <small>${esc(sub)}</small>
         </span>
-        <span class="live" aria-hidden="true"></span>
       </div>`;
+    }
+
+    const u = usageData(k);
+    const when = u.updatedAt ? timeAgo(u.updatedAt) : "갱신 전";
+    const pctTxt = u.pct == null ? "미입력" : `사용 ${u.pct}%`;
+    const title = `${p.name} · ${pctTxt} · ${u.label} · ${when} — 눌러서 수정`;
+    return `
+      <button class="person ${k} has-usage" type="button" data-usage="${k}" data-tone="${u.tone}"
+              title="${esc(title)}"
+              aria-label="${esc(`${p.name} 사용량 ${pctTxt}, ${u.label}, ${when}. 눌러서 수정`)}">
+        <span class="avatar" aria-hidden="true">${p.emoji}</span>
+        <span class="person-text">
+          <b>${esc(p.name)} <span class="live" aria-hidden="true"></span></b>
+          <small class="u-label"><span class="u-use">${u.pct == null ? "" : `사용 ${u.pct}% · `}</span>${esc(u.label)}</small>
+          <small class="u-time"><span class="u-ago">${esc(when)}</span> <span class="u-suffix">갱신</span></small>
+        </span>
+        ${donutSvg(u.pct, u.tone)}
+      </button>`;
   }).join("");
 }
+
+$("#meetPeople").addEventListener("click", e => {
+  const btn = e.target.closest("[data-usage]");
+  if (!btn) return;
+  openUsageSheet(btn.dataset.usage);
+});
 
 function meetTopic() {
   const t = state.data?.meeting?.topic;
@@ -1115,12 +1188,128 @@ function openCampaignSheet(id) {
   `);
 }
 
+/* 6-2b. 비서별 사용량 수정 시트 */
+function usagePreviewHtml(pct) {
+  const tone = usageToneOf(pct);
+  const label = pct == null ? "미입력" : esc(usageLabelOf(pct));
+  return `<b>${pct == null ? "--" : pct + "%"}</b> · ${label}`;
+}
+
+function openUsageSheet(k) {
+  const p = PEOPLE[k];
+  if (!p) return;
+  const u = usageData(k);
+  openSheet(`${p.emoji} ${p.name} 사용량`, `
+    <div class="usage-guide">
+      <b>📌 입력 방법</b>
+      <span>각 비서 앱 → <b>'내 피클'</b> 탭에서 확인한 사용량을 직접 입력해 주세요. 비서는 자기 사용량을 조회할 수 없어 자동으로 채워지지 않습니다.</span>
+    </div>
+    <div class="sheet-row"><span class="k">현재</span><span class="v">${u.pct == null ? "미입력" : `<b>${u.pct}%</b> · ${esc(u.label)}`}</span></div>
+    <div class="sheet-row"><span class="k">마지막 갱신</span><span class="v">${u.updatedAt ? tsFull(u.updatedAt) : "-"}</span></div>
+    <div class="sheet-row"><span class="k">메모</span><span class="v">${u.note ? esc(u.note) : "-"}</span></div>
+    <div class="sheet-sep"></div>
+    <div class="sheet-field">
+      <span class="sheet-label">사용률 (%) — 비우면 미입력</span>
+      <div class="usage-edit">
+        <input id="usagePct" type="number" min="0" max="100" step="1" inputmode="numeric"
+               value="${u.pct == null ? "" : u.pct}" placeholder="--" aria-label="사용률 퍼센트">
+        <input id="usageRange" type="range" min="0" max="100" step="1" value="${u.pct == null ? 0 : u.pct}" aria-label="사용률 슬라이더">
+      </div>
+      <div class="usage-preview" id="usagePreview" data-tone="${u.tone}">${usagePreviewHtml(u.pct)}</div>
+      <div class="sheet-hint">0~59% 여유 · 60~84% 한도 주의 · 85% 이상 한도 경고. 원형 그래프 색이 단계에 맞춰 바뀝니다.</div>
+    </div>
+    <div class="sheet-field">
+      <span class="sheet-label">상태 라벨</span>
+      <input id="usageLabel" type="text" maxlength="16" value="${esc(u.label)}" placeholder="여유 / 한도 주의 / 미입력" aria-label="상태 라벨">
+    </div>
+    <div class="sheet-field">
+      <span class="sheet-label">메모 · 한도 현황</span>
+      <textarea id="usageNote" class="sheet-memo" rows="3" placeholder="예: 주간 한도 40% 사용 · 오늘 글 3건 남음" aria-label="한도 메모">${esc(u.note)}</textarea>
+    </div>
+    <div class="sheet-save">
+      <button class="mini-btn" data-act="usage-clear" data-key="${k}" type="button">미입력으로 지우기</button>
+      <button class="btn primary" data-act="usage-save" data-key="${k}" type="button">저장</button>
+    </div>
+    <p class="saved-flag" id="usageSaved" hidden>저장했습니다 ✓ 모든 기기에 즉시 반영됩니다</p>
+  `);
+}
+
+function readUsageForm() {
+  const pctEl = $("#usagePct");
+  const raw = pctEl ? String(pctEl.value).trim() : "";
+  let pct = raw === "" ? null : Math.round(Number(raw));
+  if (pct != null && !Number.isFinite(pct)) pct = null;
+  if (pct != null) pct = Math.max(0, Math.min(100, pct));
+  const labelEl = $("#usageLabel");
+  const noteEl = $("#usageNote");
+  return {
+    pct,
+    label: labelEl ? labelEl.value.trim() : "",
+    note: noteEl ? noteEl.value.replace(/[ \t]+$/gm, "").trim() : ""
+  };
+}
+
+function saveUsage(k, clear) {
+  if (!db || !PEOPLE[k]) return;
+  const v = readUsageForm();
+  const pct = clear ? null : v.pct;
+  const label = clear
+    ? "미입력"
+    : (pct == null
+      ? (v.label && !["여유", "한도 주의", "한도 경고"].includes(v.label) ? v.label : "미입력")
+      : (!v.label || v.label === "미입력" ? usageLabelOf(pct) : v.label));
+  const payload = { usedPct: pct, label, note: v.note, updatedAt: Date.now() };
+  if (state.data) {
+    state.data.usage = state.data.usage || {};
+    state.data.usage[k] = payload;
+  }
+  set(ref(db, `${ROOT}/usage/${k}`), payload);
+  renderMeeting();
+  openUsageSheet(k);
+  const flag = $("#usageSaved");
+  if (flag) flag.hidden = false;
+}
+
+sheetEl.addEventListener("input", e => {
+  const el = e.target;
+  if (!el || (el.id !== "usagePct" && el.id !== "usageRange")) return;
+  const pctEl = $("#usagePct");
+  const rangeEl = $("#usageRange");
+  if (!pctEl || !rangeEl) return;
+
+  if (el.id === "usageRange") {
+    pctEl.value = el.value;
+  } else if (String(pctEl.value).trim() === "") {
+    rangeEl.value = "0";
+  } else {
+    const n = Math.max(0, Math.min(100, Math.round(Number(pctEl.value) || 0)));
+    rangeEl.value = String(n);
+  }
+
+  const raw = String(pctEl.value).trim();
+  const pct = raw === "" ? null : Math.max(0, Math.min(100, Math.round(Number(raw) || 0)));
+  const prev = $("#usagePreview");
+  if (prev) {
+    prev.dataset.tone = usageToneOf(pct);
+    prev.innerHTML = usagePreviewHtml(pct);
+  }
+});
+
 sheetEl.addEventListener("click", e => {
   if (e.target.closest("[data-sheet-close]")) { closeSheet(); return; }
   const btn = e.target.closest("button[data-act]");
   if (!btn || !db) return;
   const id = btn.dataset.id;
   const st = btn.dataset.status;
+
+  if (btn.dataset.act === "usage-save") {
+    saveUsage(btn.dataset.key, false);
+    return;
+  }
+  if (btn.dataset.act === "usage-clear") {
+    saveUsage(btn.dataset.key, true);
+    return;
+  }
 
   if (btn.dataset.act === "task-save") {
     const v = taskEditValues();
