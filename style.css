@@ -573,6 +573,11 @@ button.person:focus-visible { outline: 2px solid var(--accent); outline-offset: 
   border-color: color-mix(in srgb, var(--red) 45%, var(--border));
   color: var(--text);
 }
+.bubble.is-info .bubble-text {
+  background: var(--cyan-soft);
+  border-color: color-mix(in srgb, var(--cyan) 40%, var(--border));
+  color: var(--text);
+}
 .typing { display: inline-flex; gap: 3px; margin-right: 4px; vertical-align: middle; }
 .typing i {
   width: 5px; height: 5px; border-radius: 50%; display: inline-block;

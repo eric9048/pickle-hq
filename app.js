@@ -63,12 +63,17 @@ const SAY_KEY = "hq.meet.say.v1";
 const savedSay = localStorage.getItem(SAY_KEY);
 
 /* 제미나이 — API 키는 이 브라우저의 localStorage에만 보관합니다.
-   GitHub(공개 저장소)·Firebase RTDB 어디에도 키를 쓰지 않습니다. */
+   GitHub(공개 저장소)·Firebase RTDB 어디에도 키를 쓰지 않습니다.
+   2026-09-18부터 2.5 모델은 기존 사용 프로젝트에만 열려 있어 새 키는 404가 납니다.
+   (Google AI Studio Models 페이지 · 신규 프로젝트 권장: 3.8 Flash / 3.5 Flash-Lite) */
 const GKEY_KEY = "pickle_hq_gemini_key";
 const GMODEL_KEY = "pickle_hq_gemini_model";
 const GEMINI_MODELS = [
-  { id: "gemini-2.5-flash", label: "gemini-2.5-flash (기본 · 빠름)" },
-  { id: "gemini-2.0-flash", label: "gemini-2.0-flash (보조 · 안정)" }
+  { id: "gemini-3.8-flash", label: "gemini-3.8-flash (기본 · 균형)" },
+  { id: "gemini-3.5-flash-lite", label: "gemini-3.5-flash-lite (빠름 · 저렴)" },
+  { id: "gemini-3.6-flash", label: "gemini-3.6-flash (이전 세대 · 안정)" },
+  { id: "gemini-4-hydrogen", label: "gemini-4-hydrogen (최신 Gemini 4 · 고성능)" },
+  { id: "gemini-2.5-flash", label: "gemini-2.5-flash (기존 프로젝트만 · 새 키는 404)" }
 ];
 const GEMINI_DEFAULT_MODEL = GEMINI_MODELS[0].id;
 const GEMINI_STUDIO_URL = "https://aistudio.google.com/apikey";
@@ -702,7 +707,7 @@ function renderMeeting() {
 
   if (!arr.length) {
     room.innerHTML = `<div class="empty">아직 대화가 없습니다. 첫 메시지를 남겨 보세요.</div>`;
-    if (geminiBusy || geminiErr) paintGeminiNote();
+    if (geminiBusy || geminiErr || geminiInfo) paintGeminiNote();
     return;
   }
 
@@ -727,7 +732,7 @@ function renderMeeting() {
     meetForceScroll = false;
     room.scrollTop = room.scrollHeight;
   }
-  if (geminiBusy || geminiErr) paintGeminiNote();
+  if (geminiBusy || geminiErr || geminiInfo) paintGeminiNote();
 }
 
 /* 비서별 사용량 (hq/usage/{robin|jessi|jerry}) */
@@ -934,6 +939,7 @@ function sendMeet(forceGemini) {
   /* 방금 보낼 메시지는 따로 전달하므로, 시스템 프롬프트는 보내기 전 대화로 만듭니다. */
   const sys = callGemini ? geminiSystemPrompt() : "";
   geminiErr = "";
+  geminiInfo = "";
   meetForceScroll = true;
   push(ref(db, `${ROOT}/meeting/messages`), {
     from: state.say,
@@ -977,6 +983,7 @@ paintSay();
 
 let geminiBusy = false;
 let geminiErr = "";
+let geminiInfo = "";
 
 function geminiKey() {
   try { return String(localStorage.getItem(GKEY_KEY) || "").trim(); }
@@ -1039,7 +1046,7 @@ function geminiErrorText(status, data) {
   }
   if (status === 400) return `요청이 거부되었습니다 (HTTP 400). 키와 모델을 확인해 주세요.` + (msg ? ` — ${trunc(msg, 90)}` : "");
   if (status === 403) return "이 키로는 호출이 허용되지 않습니다 (HTTP 403). 키 제한(리퍼러·IP)·API 사용 설정·결제 상태를 확인해 주세요.";
-  if (status === 404) return "선택한 모델을 찾을 수 없습니다 (HTTP 404). 모델을 gemini-2.0-flash로 바꿔 보세요.";
+  if (status === 404) return "이 키로는 어떤 Gemini 모델도 응답하지 않았습니다 (HTTP 404). 💎 설정에서 모델을 gemini-3.8-flash로 바꾸거나, AI Studio에서 새 키를 발급해 주세요.";
   if (status === 429) return "무료 할당량을 넘었습니다 (HTTP 429). 잠시 뒤 다시 시도하거나 다른 모델을 골라 주세요.";
   if (status >= 500) return `Gemini 서버가 잠시 응답하지 않습니다 (HTTP ${status}). 잠시 뒤 다시 시도해 주세요.`;
   return `Gemini 호출에 실패했습니다 (HTTP ${status}).` + (msg ? ` ${trunc(msg, 90)}` : "");
@@ -1070,6 +1077,9 @@ function paintGeminiNote() {
   } else if (geminiErr) {
     room.insertAdjacentHTML("beforeend", geminiNoteHtml("error", geminiErr));
     room.scrollTop = room.scrollHeight;
+  } else if (geminiInfo) {
+    room.insertAdjacentHTML("beforeend", geminiNoteHtml("info", geminiInfo));
+    room.scrollTop = room.scrollHeight;
   }
 }
 
@@ -1085,26 +1095,46 @@ async function askGemini(userText, systemText) {
 
   geminiBusy = true;
   geminiErr = "";
+  geminiInfo = "";
   paintGeminiNote();
 
   try {
-    const generationConfig = { temperature: 0.7, maxOutputTokens: 1400 };
-    /* 2.5 flash는 thinking을 꺼야 답변이 잘리지 않습니다. */
-    if (/^gemini-2\.5/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: sys }] },
-        contents: [{ role: "user", parts: [{ text: ask }] }],
-        generationConfig
-      })
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      geminiErr = geminiErrorText(res.status, data);
+    /* 404(이 키로 쓸 수 없는 모델)면 다음 모델로 넘어갑니다. 성공한 모델은 localStorage에 저장. */
+    const chain = [model, ...GEMINI_MODELS.map(m => m.id).filter(id => id !== model)];
+    let res = null;
+    let data = null;
+    let usedModel = model;
+    let switched = false;
+
+    for (const id of chain) {
+      const generationConfig = { temperature: 0.7, maxOutputTokens: 4096 };
+      /* 2.5 모델은 thinking을 꺼야 답변이 잘리지 않습니다. */
+      if (/^gemini-2\.5/.test(id)) {
+        generationConfig.maxOutputTokens = 1400;
+        generationConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(id)}:generateContent?key=${encodeURIComponent(key)}`;
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: sys }] },
+          contents: [{ role: "user", parts: [{ text: ask }] }],
+          generationConfig
+        })
+      });
+      data = await res.json().catch(() => null);
+      if (res.ok) { usedModel = id; switched = id !== model; break; }
+      if (res.status === 404) continue;
+      break;
+    }
+    if (!res || !res.ok) {
+      geminiErr = geminiErrorText(res ? res.status : 0, data);
       return false;
+    }
+    if (switched) {
+      try { localStorage.setItem(GMODEL_KEY, usedModel); } catch (e) { console.error(e); }
+      geminiInfo = `${model} 모델을 이 키로는 쓸 수 없어 ${usedModel}로 답했습니다. 모델은 💎 설정에서 바꿀 수 있습니다.`;
     }
 
     const cand = data && Array.isArray(data.candidates) ? data.candidates[0] : null;
@@ -1115,7 +1145,7 @@ async function askGemini(userText, systemText) {
       if (data && data.promptFeedback && data.promptFeedback.blockReason) {
         geminiErr = "요청이 안전 정책으로 차단되어 답변을 받지 못했습니다. 표현을 바꿔 다시 시도해 주세요.";
       } else if (cand && cand.finishReason === "MAX_TOKENS") {
-        geminiErr = "답변이 길어 잘렸습니다. 다시 시도하거나 gemini-2.0-flash로 바꿔 보세요.";
+        geminiErr = "답변이 길어 잘렸습니다. 다시 시도하거나 더 짧게 물어봐 주세요.";
       } else {
         geminiErr = "Gemini가 빈 답변을 돌려줬습니다. 다시 시도해 주세요.";
       }
@@ -1170,7 +1200,7 @@ function openGeminiSheet(flash) {
     <div class="sheet-field">
       <span class="sheet-label">모델</span>
       <select id="geminiModel" aria-label="Gemini 모델">${opts}</select>
-      <span class="sheet-hint">기본은 gemini-2.5-flash. 응답이 느리거나 오류가 나면 gemini-2.0-flash로 바꿔 보세요.</span>
+      <span class="sheet-hint">기본은 gemini-3.8-flash · 응답이 느리면 gemini-3.5-flash-lite로 바꿔 보세요. 2.5 모델은 새로 만든 키에서 404가 나므로 아래쪽 "기존 프로젝트"용만 쓰세요.</span>
     </div>
     <div class="sheet-row">
       <span class="k">키 발급</span>
@@ -1200,6 +1230,7 @@ function saveGeminiSettings() {
   }
 
   geminiErr = "";
+  geminiInfo = "";
   renderMeeting();
 
   let flash = entered ? "키를 저장했습니다 — 이 브라우저에만 보관됩니다" : "모델을 저장했습니다";
@@ -1212,6 +1243,7 @@ function saveGeminiSettings() {
 function clearGeminiSettings() {
   try { localStorage.removeItem(GKEY_KEY); } catch (err) { console.error(err); }
   geminiErr = "";
+  geminiInfo = "";
   renderMeeting();
   openGeminiSheet("키를 삭제했습니다");
 }
