@@ -1035,13 +1035,13 @@ function geminiErrorText(status, data) {
     ? String((err.details.find(d => d && d.reason) || {}).reason || "")
     : "";
   if (/API_KEY_INVALID|API key not valid/i.test(reason + " " + msg)) {
-    return "API 키가 올바르지 않습니다. Google AI Studio에서 키를 다시 확인해 주세요.";
+    return `API 키가 올바르지 않습니다 (HTTP ${status}). Google AI Studio에서 키를 다시 확인해 주세요.`;
   }
-  if (status === 400) return "요청이 거부되었습니다. 키와 모델을 확인해 주세요." + (msg ? ` (${trunc(msg, 90)})` : "");
-  if (status === 403) return "이 키로는 호출이 허용되지 않습니다. 키 제한·API 사용 설정을 확인해 주세요.";
-  if (status === 404) return "선택한 모델을 찾을 수 없습니다. 모델을 gemini-2.0-flash로 바꿔 보세요.";
-  if (status === 429) return "무료 할당량을 넘었습니다. 잠시 뒤 다시 시도하거나 다른 모델을 골라 주세요.";
-  if (status >= 500) return "Gemini 서버가 잠시 응답하지 않습니다. 잠시 뒤 다시 시도해 주세요.";
+  if (status === 400) return `요청이 거부되었습니다 (HTTP 400). 키와 모델을 확인해 주세요.` + (msg ? ` — ${trunc(msg, 90)}` : "");
+  if (status === 403) return "이 키로는 호출이 허용되지 않습니다 (HTTP 403). 키 제한(리퍼러·IP)·API 사용 설정·결제 상태를 확인해 주세요.";
+  if (status === 404) return "선택한 모델을 찾을 수 없습니다 (HTTP 404). 모델을 gemini-2.0-flash로 바꿔 보세요.";
+  if (status === 429) return "무료 할당량을 넘었습니다 (HTTP 429). 잠시 뒤 다시 시도하거나 다른 모델을 골라 주세요.";
+  if (status >= 500) return `Gemini 서버가 잠시 응답하지 않습니다 (HTTP ${status}). 잠시 뒤 다시 시도해 주세요.`;
   return `Gemini 호출에 실패했습니다 (HTTP ${status}).` + (msg ? ` ${trunc(msg, 90)}` : "");
 }
 
