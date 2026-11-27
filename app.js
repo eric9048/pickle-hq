@@ -967,7 +967,7 @@ function statusChips(list, cur, act, extra) {
 }
 
 /* 상세 내용 자동 높이 */
-function autosize(ta, min = 150, max = 420) {
+function autosize(ta, min = 150, max = 2400) {
   ta.style.height = "auto";
   const need = ta.scrollHeight + 2;
   ta.style.height = Math.max(min, Math.min(need, max)) + "px";
