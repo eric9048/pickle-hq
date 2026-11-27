@@ -123,7 +123,7 @@ function avatarHtml(key, cls = "") {
   const p = PEOPLE[k] || {};
   const emoji = p.emoji || "👤";
   return `<span class="avatar${cls ? " " + cls : ""}" data-avatar="${esc(k)}" aria-hidden="true">`
-    + `<img src="assets/avatars/${esc(k)}.png?v=${AVATAR_VER}" alt="" decoding="async" loading="lazy" onerror="this.remove()">`
+    + `<img src="assets/avatars/${esc(k)}.png?v=${AVATAR_VER}" alt="" decoding="async" onerror="this.remove()">`
     + `<span class="av-fb">${emoji}</span></span>`;
 }
 
