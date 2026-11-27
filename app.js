@@ -1592,7 +1592,7 @@ function openGeminiSheet(flash) {
       <button class="mini-btn danger" type="button" data-gemini-act="clear">키 삭제</button>
       <button class="btn primary" type="button" data-gemini-act="save">저장</button>
     </div>
-    <p class="sheet-hint">키가 있으면 회의실에서 <b>@제미나이</b>가 들어간 메시지를 보내거나 <b>💎 제미나이 응답</b> 버튼을 누를 때 Gemini가 맥락을 읽고 답합니다. 키가 없으면 이 시트가 열립니다.</p>
+    <p class="sheet-hint">키가 있으면 회의실에서 <b>누구에게 말하기</b>에 <b>제미나이</b>(또는 모두)를 고르고 <b>보내기</b>를 누를 때, 또는 본문에 <b>@제미나이</b>를 넣었을 때 Gemini가 맥락을 읽고 답합니다. 키가 없으면 이 시트가 열립니다.</p>
   `);
 }
 
@@ -1830,7 +1830,7 @@ async function askChatGPT(userText, systemText) {
     return true;
   } catch (err) {
     chatgptErr = (err && err.name === "TypeError")
-      ? "네트워크에서 OpenAI에 연결하지 못했습니다. 연결 상태나 광고 차단 확장을 확인해 주세요."
+      ? "OpenAI에 연결하지 못했습니다 — 키가 취소·오류였거나 이 브라우저의 직접 호출이 막힌 경우입니다(OpenAI는 오류 응답에 CORS 헤더를 주지 않아 브라우저에서는 원인이 가려집니다). 🤖 설정에서 키를 다시 확인하고, 계속 안 되면 휴대폰·PC 브라우저에서 한 번 시도해 주세요."
       : "ChatGPT 호출 중 문제가 생겼습니다. 잠시 뒤 다시 시도해 주세요.";
     console.error(err);
     return false;
@@ -1877,7 +1877,7 @@ function openChatgptSheet(flash) {
       <button class="mini-btn danger" type="button" data-chatgpt-act="clear">키 삭제</button>
       <button class="btn primary" type="button" data-chatgpt-act="save">저장</button>
     </div>
-    <p class="sheet-hint">키가 있으면 회의실에서 <b>@ChatGPT</b>가 들어간 메시지를 보내거나 <b>🤖 ChatGPT 응답</b> 버튼을 누를 때 맴락을 읽고 답합니다. 키가 없으면 이 시트가 열립니다.</p>
+    <p class="sheet-hint">키가 있으면 회의실에서 <b>누구에게 말하기</b>에 <b>ChatGPT</b>(또는 모두)를 고르고 <b>보내기</b>를 누를 때, 또는 본문에 <b>@ChatGPT</b>를 넣었을 때 맥락을 읽고 답합니다. 키가 없으면 이 시트가 열립니다.</p>
   `);
 }
 
@@ -2100,7 +2100,7 @@ async function loungeTurn(kind) {
     return true;
   } catch (err) {
     loungeErr = (err && err.name === "TypeError")
-      ? "네트워크에서 AI에 연결하지 못했습니다. 연결 상태나 광고 차단 확장을 확인해 주세요."
+      ? "AI에 연결하지 못했습니다. 키가 올바른지, 광고 차단 확장이 막고 있지 않은지 확인해 주세요."
       : "AI 호출 중 문제가 생겼습니다. 잠시 뒤 다시 시도해 주세요.";
     console.error(err);
     return false;
