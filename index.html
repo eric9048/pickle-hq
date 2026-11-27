@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark light">
+<title>합동 비서실</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏢%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── 접속 잠금 ───────────────────────────────────────────── -->
+<div id="gate" class="gate">
+  <form id="gateForm" class="gate-card" autocomplete="off">
+    <div class="gate-logo">🏢</div>
+    <h1>합동 비서실</h1>
+    <p class="muted">접속 PIN을 입력하세요</p>
+    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8"
+           placeholder="••••" aria-label="접속 PIN" autocomplete="off">
+    <button type="submit" class="btn primary block">입장</button>
+    <p id="gateError" class="gate-error" hidden>PIN이 맞지 않습니다.</p>
+  </form>
+</div>
+
+<!-- ── 대시보드 ────────────────────────────────────────────── -->
+<div id="app" class="app" hidden>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🏢</span>
+      <div class="brand-text">
+        <strong>합동 비서실</strong>
+        <small id="syncState">연결 중…</small>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button id="themeBtn" class="icon-btn" type="button" title="테마 전환" aria-label="테마 전환">🌙</button>
+      <button id="logoutBtn" class="icon-btn" type="button" title="로그아웃">나가기</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <!-- 1. 실시간 업무 보드 -->
+    <section class="card" id="board">
+      <div class="card-head">
+        <h2>📋 실시간 업무 보드</h2>
+        <span class="hint" id="taskSummary"></span>
+      </div>
+
+      <div class="filters" id="ownerFilters" role="tablist" aria-label="담당자 필터">
+        <button class="chip is-on" data-owner="all" type="button">전체</button>
+        <button class="chip" data-owner="robin" type="button">로빈</button>
+        <button class="chip" data-owner="jessi" type="button">제시</button>
+        <button class="chip" data-owner="jerry" type="button">제리</button>
+        <button class="chip" data-owner="boss" type="button">사장님</button>
+      </div>
+
+      <form id="taskForm" class="row-form">
+        <input id="taskTitle" type="text" placeholder="새 업무를 입력하세요" aria-label="업무 제목" required>
+        <select id="taskOwner" aria-label="담당자">
+          <option value="robin">로빈</option>
+          <option value="jessi">제시</option>
+          <option value="jerry">제리</option>
+          <option value="boss">사장님</option>
+        </select>
+        <select id="taskStatus" aria-label="상태">
+          <option value="doing">진행 중</option>
+          <option value="waiting">대기 중</option>
+          <option value="done">완료</option>
+        </select>
+        <button class="btn primary" type="submit">추가</button>
+      </form>
+
+      <div class="kanban" id="kanban">
+        <div class="col" data-status="doing">
+          <div class="col-head"><span class="dot doing"></span>진행 중 <span class="count" data-count="doing">0</span></div>
+          <div class="col-body" data-list="doing"></div>
+        </div>
+        <div class="col" data-status="waiting">
+          <div class="col-head"><span class="dot waiting"></span>대기 중 <span class="count" data-count="waiting">0</span></div>
+          <div class="col-body" data-list="waiting"></div>
+        </div>
+        <div class="col" data-status="done">
+          <div class="col-head"><span class="dot done"></span>완료 <span class="count" data-count="done">0</span></div>
+          <div class="col-body" data-list="done"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 콘텐츠 현황판 -->
+    <section class="card" id="content">
+      <div class="card-head">
+        <h2>🗂 콘텐츠 현황판</h2>
+        <span class="hint" id="blogSummary"></span>
+      </div>
+
+      <div class="sub">
+        <div class="sub-head">
+          <h3>네이버 블로그 <span class="tag">eric_pm</span></h3>
+          <div class="filters small" id="blogFilters">
+            <button class="chip is-on" data-blog="all" type="button">전체</button>
+            <button class="chip" data-blog="published" type="button">발행 완료</button>
+            <button class="chip" data-blog="draft" type="button">임시저장</button>
+          </div>
+        </div>
+        <div class="blog-list" id="blogList"></div>
+      </div>
+
+      <div class="two-col">
+        <div class="sub">
+          <div class="sub-head"><h3>스레드 <span class="tag">@eric_yiman</span></h3></div>
+          <div class="mini-list" id="threadList"></div>
+        </div>
+        <div class="sub">
+          <div class="sub-head"><h3>캠페인 마감</h3></div>
+          <div class="mini-list" id="campaignList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. 수익 · 장부 -->
+    <section class="card" id="finance">
+      <div class="card-head">
+        <h2>💰 수익 · 장부 요약</h2>
+        <span class="hint">11월 누계 · 조회 시점 기준</span>
+      </div>
+      <div class="money-grid" id="moneyGrid"></div>
+    </section>
+
+    <!-- 4. 메모 / 전달 피드 -->
+    <section class="card" id="feedSection">
+      <div class="card-head">
+        <h2>💬 비서실 메모 · 전달 피드</h2>
+        <span class="hint">새로고침 없이 모든 기기에 즉시 표시됩니다</span>
+      </div>
+
+      <form id="feedForm" class="feed-form">
+        <select id="feedFrom" aria-label="보내는 사람">
+          <option value="boss">사장님</option>
+          <option value="robin" selected>로빈</option>
+          <option value="jessi">제시</option>
+          <option value="jerry">제리</option>
+        </select>
+        <textarea id="feedText" rows="2" placeholder="메모나 지시사항을 남기세요 (Ctrl+Enter 전송)" aria-label="메모 내용" required></textarea>
+        <button class="btn primary" type="submit">보내기</button>
+      </form>
+
+      <div class="feed" id="feedList"></div>
+    </section>
+
+    <footer class="foot">
+      <span id="footStamp">—</span>
+      <span class="dot-sep">·</span>
+      <span>합동 비서실 (pickle-hq)</span>
+    </footer>
+  </main>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
