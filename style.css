@@ -218,6 +218,7 @@ select { cursor: pointer; }
   border-left: 3px solid var(--border);
   border-radius: 12px; padding: 10px 11px;
   display: grid; gap: 8px;
+  cursor: pointer;
   animation: pop .18s ease-out;
 }
 @keyframes pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -226,6 +227,13 @@ select { cursor: pointer; }
 .task[data-owner="jerry"] { border-left-color: var(--green); }
 .task[data-owner="boss"] { border-left-color: var(--amber); }
 .task-title { font-size: .85rem; font-weight: 600; line-height: 1.4; }
+.task-desc {
+  font-size: .76rem; color: var(--muted); line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.task-desc.is-empty { color: color-mix(in srgb, var(--muted) 70%, transparent); font-style: italic; }
 .task[data-status="done"] .task-title { color: var(--muted); text-decoration: line-through; }
 .task-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .task-meta select {
@@ -560,6 +568,18 @@ a.mini-link:hover { text-decoration: underline; }
 .sheet-label { font-size: .74rem; font-weight: 700; color: var(--muted); }
 .sheet-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .sheet-sep { height: 1px; background: var(--border); margin: 2px 0; }
+.sheet-field { display: grid; gap: 6px; }
+.sheet-field > input[type="text"],
+.sheet-field > textarea { width: 100%; box-sizing: border-box; }
+.sheet-field > textarea {
+  resize: vertical; line-height: 1.6; min-height: 130px;
+  font-size: .84rem; overflow-y: hidden;
+}
+.sheet-field > textarea.sheet-memo { min-height: 78px; font-size: .82rem; overflow-y: auto; }
+.sheet-hint { font-size: .7rem; color: var(--muted); line-height: 1.4; }
+.sheet-save { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.saved-flag { font-size: .72rem; font-weight: 700; color: var(--green); }
+.row-form textarea { flex: 1 1 100%; min-height: 54px; resize: vertical; }
 
 /* ── 수익 상세 ───────────────────────────────────────────── */
 .detail-card { display: grid; gap: 12px; }
@@ -587,6 +607,7 @@ a.mini-link:hover { text-decoration: underline; }
   .blog-row select { grid-column: 3; grid-row: 1; }
   .row-form { display: grid; grid-template-columns: 1fr 1fr; }
   .row-form input[type="text"] { grid-column: 1 / -1; }
+  .row-form textarea { grid-column: 1 / -1; }
   .row-form .btn { grid-column: 1 / -1; }
   .money .big { font-size: 1.28rem; }
   .meet-people { grid-template-columns: repeat(2, minmax(0, 1fr)); }

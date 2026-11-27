@@ -222,6 +222,10 @@ function renderTasks() {
   });
 }
 
+function taskDetail(t) {
+  return String(t.detail ?? t.description ?? t.notes ?? "");
+}
+
 function taskCard(t) {
   const opts = Object.entries(OWNER).map(([k, v]) =>
     `<option value="${k}"${t.owner === k ? " selected" : ""}>${v}</option>`).join("");
@@ -229,10 +233,15 @@ function taskCard(t) {
     s === t.status ? "" :
       `<button class="mini-btn" data-act="status" data-id="${t.id}" data-status="${s}" type="button">→ ${STATUS[s]}</button>`
   ).join("");
+  const detail = taskDetail(t).trim();
+  const desc = detail
+    ? `<div class="task-desc">${esc(trunc(detail, 110))}</div>`
+    : `<div class="task-desc is-empty">상세 내용을 적어 두세요</div>`;
 
   return `
-    <div class="task" data-owner="${esc(t.owner)}" data-status="${esc(t.status)}" data-id="${t.id}">
+    <div class="task" data-owner="${esc(t.owner)}" data-status="${esc(t.status)}" data-id="${t.id}" title="눌러서 상세 내용 보기">
       <div class="task-title">${esc(t.title)}</div>
+      ${desc}
       <div class="task-meta">
         <select data-act="owner" data-id="${t.id}" aria-label="담당자 변경">${opts}</select>
         <span class="hint">${timeAgo(t.updatedAt || t.createdAt)}</span>
@@ -259,12 +268,14 @@ $("#taskForm").addEventListener("submit", e => {
   const now = Date.now();
   push(ref(db, `${ROOT}/tasks`), {
     title,
+    detail: $("#taskDetail").value.replace(/[ \t]+$/gm, "").trim(),
     owner: $("#taskOwner").value,
     status: $("#taskStatus").value,
     createdAt: now,
     updatedAt: now
   });
   $("#taskTitle").value = "";
+  $("#taskDetail").value = "";
   $("#taskTitle").focus();
 });
 
@@ -845,7 +856,7 @@ function renderHome() {
       <span class="hc-top">📋 업무 보드</span>
       <span class="hc-big">${doing + waiting}건 남음</span>
       <span class="hc-sub">진행 중 ${doing} · 대기 중 ${waiting} · 완료 ${done} · 전체 ${tasks.length}건</span>
-      <span class="hc-sub">카드를 누르면 담당자·상태를 바로 바꿀 수 있습니다</span>
+      <span class="hc-sub">카드를 누르면 상세 내용을 바로 보고 고칠 수 있습니다</span>
       <span class="hc-go">업무 보드 열기 →</span>
     </button>
 
@@ -955,31 +966,93 @@ function statusChips(list, cur, act, extra) {
   ).join("");
 }
 
-function openTaskSheet(id) {
+/* 상세 내용 자동 높이 */
+function autosize(ta, min = 150, max = 420) {
+  ta.style.height = "auto";
+  const need = ta.scrollHeight + 2;
+  ta.style.height = Math.max(min, Math.min(need, max)) + "px";
+  ta.style.overflowY = need > max ? "auto" : "hidden";
+}
+
+/* 상세 시트에 편집 중인 제목·내용 읽기 */
+function taskEditValues() {
+  const titleEl = sheetEl.querySelector("#taskEditTitle");
+  const detailEl = sheetEl.querySelector("#taskEditDetail");
+  if (!titleEl && !detailEl) return null;
+  return {
+    title: titleEl ? titleEl.value.trim() : "",
+    detail: detailEl
+      ? detailEl.value.replace(/[ \t]+$/gm, "").replace(/\n{4,}/g, "\n\n\n").trim()
+      : ""
+  };
+}
+
+/* 공통 메모 블록 (블로그 · 스레드 · 캠페인) */
+function memoBlock(path, value, label) {
+  return `
+    <div class="sheet-sep"></div>
+    <div class="sheet-field">
+      <span class="sheet-label">${esc(label || "메모")}</span>
+      <textarea class="sheet-memo" data-memo-path="${esc(path)}" rows="3" placeholder="진행 상황·다음 할 일을 적어 두세요" aria-label="${esc(label || "메모")}">${esc(value || "")}</textarea>
+      <div class="sheet-save">
+        <button class="mini-btn" data-act="save-memo" data-path="${esc(path)}" type="button">메모 저장</button>
+      </div>
+    </div>`;
+}
+
+function openTaskSheet(id, savedAt) {
   const t = tasksArr().find(x => x.id === id);
   if (!t) return;
   const ownerOpts = Object.entries(OWNER).map(([k, v]) =>
     `<option value="${k}"${t.owner === k ? " selected" : ""}>${v}</option>`).join("");
+  const detail = taskDetail(t);
+  const stamp = tsFull(t.updatedAt || t.createdAt);
 
   openSheet("업무 상세", `
-    <div class="sheet-row"><span class="k">업무</span><span class="v"><b>${esc(t.title)}</b></span></div>
-    <div class="sheet-sep"></div>
-    <label class="sheet-row">
+    <div class="sheet-field">
+      <span class="sheet-label">업무 제목</span>
+      <input id="taskEditTitle" type="text" maxlength="200" value="${esc(t.title)}" aria-label="업무 제목 수정">
+    </div>
+    <div class="sheet-row">
       <span class="k">담당자</span>
       <select data-act="task-owner" data-id="${t.id}" aria-label="담당자 변경">${ownerOpts}</select>
-    </label>
+    </div>
     <div class="sheet-row"><span class="k">현재 상태</span><span class="v">${STATUS[t.status] || t.status}</span></div>
-    <div class="sheet-row"><span class="k">최근 갱신</span><span class="v">${tsFull(t.updatedAt || t.createdAt)}</span></div>
+    <div class="sheet-row"><span class="k">최근 갱신</span><span class="v">${stamp}</span></div>
     <div class="sheet-row"><span class="k">등록</span><span class="v">${tsFull(t.createdAt)}</span></div>
     <div class="sheet-sep"></div>
     <div class="sheet-label">상태 바꾸기</div>
     <div class="sheet-actions">
       ${statusChips(Object.entries(STATUS), t.status, "task-status", `data-id="${t.id}"`)}
     </div>
+    <div class="sheet-sep"></div>
+    <div class="sheet-field">
+      <span class="sheet-label">상세 내용 · 메모</span>
+      <textarea id="taskEditDetail" rows="8" placeholder="진행 상황, 다음 할 일, 체크리스트, 관련 링크를 적어 두세요." aria-label="업무 상세 내용">${esc(detail)}</textarea>
+      <span class="sheet-hint">줄바꿈·목록이 그대로 저장됩니다. Ctrl(⌘)+Enter로 저장.</span>
+    </div>
+    <div class="sheet-save">
+      ${savedAt ? `<span class="saved-flag">저장했습니다 · ${clock(savedAt)}</span>` : ""}
+      <button class="btn primary" data-act="task-save" data-id="${t.id}" type="button">저장</button>
+    </div>
+    <div class="sheet-sep"></div>
     <div class="sheet-actions" style="justify-content:flex-end">
       <button class="mini-btn danger" data-act="task-del" data-id="${t.id}" type="button">업무 삭제</button>
     </div>
   `);
+
+  const ta = $("#taskEditDetail");
+  if (ta) {
+    autosize(ta);
+    ta.addEventListener("input", () => autosize(ta));
+    ta.addEventListener("keydown", e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        const save = sheetEl.querySelector('[data-act="task-save"]');
+        if (save) save.click();
+      }
+    });
+  }
 }
 
 function openBlogSheet(key) {
@@ -995,6 +1068,7 @@ function openBlogSheet(key) {
     <div class="sheet-actions">
       ${statusChips(Object.entries(BLOG_STATUS), b.status, "blog-status", `data-key="${esc(b.key)}"`)}
     </div>
+    ${memoBlock(`${ROOT}/content/blog/${b.key}`, b.note, "메모 · 집필 내역")}
     <div class="kv-note">발행은 사장님이 직접 결정합니다. 카드의 제목을 누르면 바로 수정할 수 있습니다.</div>
   `);
 }
@@ -1017,6 +1091,7 @@ function openThreadSheet(id) {
     <div class="sheet-actions">
       ${statusChips(Object.entries(THREAD_STATUS), s.status, "thread-status", `data-id="${s.id}"`)}
     </div>
+    ${memoBlock(`${ROOT}/content/threads/${s.id}`, s.note, "메모 · 진행 상황")}
   `);
 }
 
@@ -1036,6 +1111,7 @@ function openCampaignSheet(id) {
     <div class="sheet-actions">
       ${statusChips(Object.entries(CAMP_STATUS), c.status, "camp-status", `data-id="${c.id}"`)}
     </div>
+    ${memoBlock(`${ROOT}/content/campaigns/${c.id}`, c.note, "메모 · 제출 준비")}
   `);
 }
 
@@ -1046,9 +1122,34 @@ sheetEl.addEventListener("click", e => {
   const id = btn.dataset.id;
   const st = btn.dataset.status;
 
-  if (btn.dataset.act === "task-status") {
-    if (state.data?.tasks?.[id]) Object.assign(state.data.tasks[id], { status: st, updatedAt: Date.now() });
-    update(ref(db, `${ROOT}/tasks/${id}`), { status: st, updatedAt: Date.now() });
+  if (btn.dataset.act === "task-save") {
+    const v = taskEditValues();
+    if (!v) return;
+    if (!v.title) {
+      const titleEl = sheetEl.querySelector("#taskEditTitle");
+      if (titleEl) { titleEl.focus(); titleEl.select(); }
+      return;
+    }
+    const now = Date.now();
+    if (state.data?.tasks?.[id]) Object.assign(state.data.tasks[id], { ...v, updatedAt: now });
+    update(ref(db, `${ROOT}/tasks/${id}`), { ...v, updatedAt: now });
+    renderTasks();
+    openTaskSheet(id, now);
+  } else if (btn.dataset.act === "save-memo") {
+    const path = btn.dataset.path;
+    const field = [...sheetEl.querySelectorAll("textarea[data-memo-path]")]
+      .find(el => el.dataset.memoPath === path);
+    if (!field) return;
+    const note = field.value.replace(/[ \t]+$/gm, "").trim();
+    update(ref(db, path), { note, updatedAt: Date.now() });
+    btn.textContent = "저장했습니다 ✓";
+    setTimeout(() => { btn.textContent = "메모 저장"; }, 1800);
+  } else if (btn.dataset.act === "task-status") {
+    const v = taskEditValues();
+    const patch = { status: st, updatedAt: Date.now() };
+    if (v && v.title) { patch.title = v.title; patch.detail = v.detail; }
+    if (state.data?.tasks?.[id]) Object.assign(state.data.tasks[id], patch);
+    update(ref(db, `${ROOT}/tasks/${id}`), patch);
     openTaskSheet(id);
   } else if (btn.dataset.act === "task-del") {
     if (confirm("이 업무를 삭제할까요?")) { remove(ref(db, `${ROOT}/tasks/${id}`)); closeSheet(); }
