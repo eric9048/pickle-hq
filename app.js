@@ -2004,7 +2004,7 @@ function renderLounge(force) {
       </div>`;
   }).join("");
 
-  if (nearBottom || loungeBusy) room.scrollTop = room.scrollHeight;
+  if (nearBottom || loungeBusy || force) room.scrollTop = room.scrollHeight;
   paintLoungeNote();
 }
 
@@ -2755,6 +2755,7 @@ function applyRoute() {
   if (sec) {
     $$(".pane", sec).forEach(p => { p.hidden = p.dataset.pane !== pane; });
     $$(".subnav .sub-btn", sec).forEach(b => b.classList.toggle("is-on", b.dataset.pane === pane));
+  if (view === "meeting" && pane === "lounge") renderLounge(true);
   }
 
   localStorage.setItem(ROUTE_KEY, `#${view}${pane ? "/" + pane : ""}`);
