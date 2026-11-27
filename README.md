@@ -21,6 +21,9 @@
 | `style.css` | 다크/라이트 테마, 반응형 레이아웃 |
 | `app.js` | Firebase 연결, 실시간 렌더링, 모든 편집 동작. 상단에 `firebaseConfig`와 접속 PIN이 있습니다 |
 
+> 파일을 고쳐 배포할 때는 `index.html`의 `style.css?v=` · `app.js?v=` 값을 함께 올려 주세요.
+> GitHub Pages가 파일을 최대 10분간 캐시하므로, 값이 같으면 새 코드가 바로 보이지 않습니다.
+
 ## 접속
 
 - 잠금 화면에서 PIN을 입력하면 입장합니다. 인증 상태는 브라우저 localStorage에 남고, 우측 상단 **나가기**로 해제합니다.
