@@ -423,7 +423,7 @@ button.person:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 .donut.is-empty .donut-bar { display: none; }
 .donut.is-empty .donut-track { stroke-dasharray: 2.5 4.5; stroke-linecap: round; }
 .donut-pct {
-  position: relative; font-size: .6rem; font-weight: 800; letter-spacing: -.02em;
+  position: relative; font-size: .63rem; font-weight: 800; letter-spacing: -.02em;
   color: var(--tone, var(--pc)); font-variant-numeric: tabular-nums;
 }
 .donut.is-empty .donut-pct { color: var(--muted); letter-spacing: 0; }
@@ -707,7 +707,7 @@ button.person:focus-visible { outline: 2px solid var(--accent); outline-offset: 
   .person-text b { font-size: .74rem; justify-content: center; }
   .person-text small { font-size: .58rem; text-align: center; }
   .u-use, .u-suffix { display: none; }
-  .donut-pct { font-size: .57rem; }
+  .donut-pct { font-size: .58rem; }
   .live { width: 6px; height: 6px; box-shadow: 0 0 0 2px var(--pc-soft); }
 }
 @media (max-width: 520px) {

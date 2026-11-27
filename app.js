@@ -742,12 +742,16 @@ function renderMeetingPeople(arr) {
 
     const u = usageData(k);
     const when = u.updatedAt ? timeAgo(u.updatedAt) : "갱신 전";
-    const pctTxt = u.pct == null ? "미입력" : `사용 ${u.pct}%`;
-    const title = `${p.name} · ${pctTxt} · ${u.label} · ${when} — 눌러서 수정`;
+    const title = u.pct == null
+      ? `${p.name} · 사용량 미입력 · ${when} — 눌러서 입력`
+      : `${p.name} · 사용 ${u.pct}% · ${u.label} · ${when} 갱신 — 눌러서 수정`;
+    const aria = u.pct == null
+      ? `${p.name} 사용량 미입력, ${when}. 눌러서 입력`
+      : `${p.name} 사용량 ${u.pct}%, ${u.label}, ${when} 갱신. 눌러서 수정`;
     return `
       <button class="person ${k} has-usage" type="button" data-usage="${k}" data-tone="${u.tone}"
               title="${esc(title)}"
-              aria-label="${esc(`${p.name} 사용량 ${pctTxt}, ${u.label}, ${when}. 눌러서 수정`)}">
+              aria-label="${esc(aria)}">
         <span class="avatar" aria-hidden="true">${p.emoji}</span>
         <span class="person-text">
           <b>${esc(p.name)} <span class="live" aria-hidden="true"></span></b>
