@@ -44,6 +44,39 @@
 
   <main class="wrap">
 
+    <!-- 0. 합동 회의실 -->
+    <section class="card meet" id="meeting">
+      <div class="card-head">
+        <h2>💬 합동 회의실</h2>
+        <span class="hint" id="meetSummary">참여자 4명</span>
+      </div>
+
+      <div class="meet-people" id="meetPeople" aria-label="회의실 참여자"></div>
+
+      <div class="meet-topic">
+        <span class="meet-topic-label">안건</span>
+        <span class="meet-topic-text" id="meetTopicText">안건을 정해 주세요</span>
+        <span class="meet-topic-by" id="meetTopicWho"></span>
+        <button class="mini-btn" id="meetTopicEdit" type="button" title="안건 수정">✏️ 수정</button>
+      </div>
+
+      <div class="meet-room" id="meetRoom" role="log" aria-live="polite" aria-label="회의 메시지"></div>
+
+      <form id="meetForm" class="meet-form" autocomplete="off">
+        <div class="meet-say" id="meetSay" role="group" aria-label="발화자 선택">
+          <span class="meet-say-label">말하는 사람</span>
+          <button class="chip is-on" data-say="boss" type="button">👑 사장님</button>
+          <button class="chip" data-say="robin" type="button">🦉 로빈</button>
+          <button class="chip" data-say="jessi" type="button">✨ 제시</button>
+          <button class="chip" data-say="jerry" type="button">🍀 제리</button>
+        </div>
+        <div class="meet-input">
+          <textarea id="meetText" rows="1" placeholder="사장님으로 말하기 (Enter 전송 · Shift+Enter 줄바꿈)" aria-label="회의 메시지" required></textarea>
+          <button class="btn primary" type="submit">보내기</button>
+        </div>
+      </form>
+    </section>
+
     <!-- 1. 실시간 업무 보드 -->
     <section class="card" id="board">
       <div class="card-head">

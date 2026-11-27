@@ -38,12 +38,24 @@ const BLOG_STATUS = { published: "발행 완료", draft: "임시저장", hidden:
 const THREAD_STATUS = { posted: "게시 완료", drafting: "작성 중", hold: "보류" };
 const CAMP_STATUS = { pending: "미제출", doing: "진행 중", submitted: "제출 완료" };
 
+/* 합동 회의실 참여자 */
+const PEOPLE = {
+  boss: { name: "사장님", emoji: "👑", role: "사장님" },
+  robin: { name: "로빈", emoji: "🦉", role: "비서" },
+  jessi: { name: "제시", emoji: "✨", role: "비서" },
+  jerry: { name: "제리", emoji: "🍀", role: "비서" }
+};
+const PEOPLE_ORDER = ["boss", "robin", "jessi", "jerry"];
+const SAY_KEY = "hq.meet.say.v1";
+const savedSay = localStorage.getItem(SAY_KEY);
+
 /* ── 2. 상태 ─────────────────────────────────────────────── */
 
 const state = {
   data: null,
   ownerFilter: "all",
   blogFilter: "all",
+  say: PEOPLE[savedSay] ? savedSay : "boss",
   ready: false
 };
 
@@ -157,6 +169,7 @@ function startBoard() {
 /* ── 5. 렌더 ─────────────────────────────────────────────── */
 
 function renderAll() {
+  renderMeeting();
   renderTasks();
   renderBlog();
   renderThreads();
@@ -526,6 +539,212 @@ $("#feedList").addEventListener("click", e => {
   if (!btn || !db) return;
   if (confirm("이 메모를 삭제할까요?")) remove(ref(db, `${ROOT}/feed/${btn.dataset.id}`));
 });
+
+/* 5-7. 합동 회의실 */
+let meetSig = "";
+let meetLastId = null;
+let meetForceScroll = false;
+
+function clock(ts) {
+  if (!ts) return "";
+  const d = new Date(Number(ts));
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const sameDay = d.getFullYear() === now.getFullYear()
+    && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  return sameDay ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+}
+
+function meetMessages() {
+  const m = state.data?.meeting?.messages || {};
+  return Object.entries(m)
+    .map(([id, v]) => ({
+      id,
+      from: v && v.from ? String(v.from) : "robin",
+      text: v && v.text != null ? String(v.text) : "",
+      ts: Number(v && v.ts) || 0
+    }))
+    .filter(v => v.text.trim())
+    .sort((a, b) => a.ts - b.ts || String(a.id).localeCompare(String(b.id)));
+}
+
+function renderMeeting() {
+  const arr = meetMessages();
+  renderMeetingPeople(arr);
+  renderMeetingTopic();
+  $("#meetSummary").textContent = arr.length
+    ? `${arr.length}개 메시지 · 참여자 4명`
+    : "참여자 4명";
+
+  const room = $("#meetRoom");
+  const sig = arr.map(m => `${m.id}:${m.ts}:${m.from}:${m.text}`).join("\u0001");
+  if (sig === meetSig) return;
+
+  const nearBottom = room.scrollHeight - room.scrollTop - room.clientHeight < 90;
+  const prevLast = meetLastId;
+  meetSig = sig;
+  meetLastId = arr.length ? arr[arr.length - 1].id : null;
+
+  if (!arr.length) {
+    room.innerHTML = `<div class="empty">아직 대화가 없습니다. 첫 메시지를 남겨 보세요.</div>`;
+    return;
+  }
+
+  room.innerHTML = arr.map(m => {
+    const p = PEOPLE[m.from] || { name: m.from, emoji: "👤" };
+    const mine = m.from === "boss";
+    return `
+      <div class="bubble ${esc(m.from)}${mine ? " is-mine" : ""}" data-id="${esc(m.id)}">
+        <span class="avatar" aria-hidden="true">${p.emoji}</span>
+        <div class="bubble-body">
+          <div class="bubble-top">
+            <b>${esc(p.name)}</b>
+            <span>${clock(m.ts)}</span>
+            <button class="bubble-del" data-act="del-meet" data-id="${esc(m.id)}" type="button" title="메시지 삭제" aria-label="메시지 삭제">✕</button>
+          </div>
+          <div class="bubble-text">${esc(m.text)}</div>
+        </div>
+      </div>`;
+  }).join("");
+
+  if (meetForceScroll || prevLast === null || nearBottom) {
+    meetForceScroll = false;
+    room.scrollTop = room.scrollHeight;
+  }
+}
+
+function renderMeetingPeople(arr) {
+  const lastBy = {};
+  arr.forEach(m => { lastBy[m.from] = m.ts; });
+
+  $("#meetPeople").innerHTML = PEOPLE_ORDER.map(k => {
+    const p = PEOPLE[k];
+    const ts = lastBy[k];
+    const status = k === "boss" ? "접속 중" : "참여 중";
+    const sub =
+      `${p.role} · ${status}` + (ts ? ` · ${clock(ts)}` : "");
+    return `
+      <div class="person ${k}" title="${esc(p.name)} · ${esc(sub)}">
+        <span class="avatar" aria-hidden="true">${p.emoji}</span>
+        <span class="person-text">
+          <b>${esc(p.name)}</b>
+          <small>${esc(sub)}</small>
+        </span>
+        <span class="live" aria-hidden="true"></span>
+      </div>`;
+  }).join("");
+}
+
+function meetTopic() {
+  const t = state.data?.meeting?.topic;
+  if (typeof t === "string") return { text: t, by: "" };
+  return { text: t && t.text != null ? String(t.text) : "", by: t && t.by ? String(t.by) : "" };
+}
+
+function renderMeetingTopic() {
+  const el = $("#meetTopicText");
+  if (el.dataset.editing) return;
+  const { text, by } = meetTopic();
+  el.textContent = text || "안건을 정해 주세요";
+  el.classList.toggle("is-empty", !text);
+  $("#meetTopicWho").textContent = by && PEOPLE[by] ? `· ${PEOPLE[by].name}` : "";
+}
+
+$("#meetTopicEdit").addEventListener("click", () => {
+  const el = $("#meetTopicText");
+  if (el.dataset.editing || !db) return;
+  const { text } = meetTopic();
+  el.dataset.editing = "1";
+  el.innerHTML = `<input type="text" maxlength="140" value="${esc(text)}" placeholder="오늘 회의 안건" aria-label="안건 수정">`;
+  const input = el.querySelector("input");
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+
+  let done = false;
+  const finish = save => {
+    if (done) return;
+    done = true;
+    const v = input.value.trim();
+    delete el.dataset.editing;
+    if (save) {
+      const topic = { text: v, by: state.say, updatedAt: Date.now() };
+      if (state.data) {
+        state.data.meeting = state.data.meeting || {};
+        state.data.meeting.topic = topic;
+      }
+      set(ref(db, `${ROOT}/meeting/topic`), topic);
+    }
+    renderMeetingTopic();
+  };
+
+  input.addEventListener("keydown", ev => {
+    if (ev.key === "Enter") { ev.preventDefault(); finish(true); }
+    if (ev.key === "Escape") { ev.preventDefault(); finish(false); }
+  });
+  input.addEventListener("blur", () => finish(true));
+});
+
+function paintSay() {
+  $$("#meetSay .chip").forEach(c => c.classList.toggle("is-on", c.dataset.say === state.say));
+  $("#meetText").placeholder =
+    `${PEOPLE[state.say].name}으로 말하기 (Enter 전송 · Shift+Enter 줄바꿈)`;
+}
+
+$("#meetSay").addEventListener("click", e => {
+  const btn = e.target.closest("[data-say]");
+  if (!btn) return;
+  state.say = btn.dataset.say;
+  localStorage.setItem(SAY_KEY, state.say);
+  paintSay();
+  $("#meetText").focus();
+});
+
+function autoGrow(ta) {
+  ta.style.height = "auto";
+  ta.style.height = Math.min(ta.scrollHeight, 140) + "px";
+}
+
+function sendMeet() {
+  const ta = $("#meetText");
+  if (!db) return;
+  const text = ta.value.trim();
+  if (!text) return;
+  meetForceScroll = true;
+  push(ref(db, `${ROOT}/meeting/messages`), {
+    from: state.say,
+    text,
+    ts: Date.now()
+  });
+  ta.value = "";
+  autoGrow(ta);
+  ta.focus();
+}
+
+$("#meetForm").addEventListener("submit", e => {
+  e.preventDefault();
+  sendMeet();
+});
+
+$("#meetText").addEventListener("input", e => autoGrow(e.target));
+
+$("#meetText").addEventListener("keydown", e => {
+  if (e.key !== "Enter" || e.shiftKey) return;
+  if (e.isComposing || e.keyCode === 229) return;
+  e.preventDefault();
+  sendMeet();
+});
+
+$("#meetRoom").addEventListener("click", e => {
+  const btn = e.target.closest('[data-act="del-meet"]');
+  if (!btn || !db) return;
+  if (confirm("이 메시지를 삭제할까요?")) {
+    remove(ref(db, `${ROOT}/meeting/messages/${btn.dataset.id}`));
+  }
+});
+
+paintSay();
+
 
 /* ── 6. 시작 ─────────────────────────────────────────────── */
 

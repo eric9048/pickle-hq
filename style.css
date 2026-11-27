@@ -342,6 +342,117 @@ a.mini-link:hover { text-decoration: underline; }
 }
 .dot-sep { opacity: .5; }
 
+/* ── 합동 회의실 ──────────────────────────────────────────── */
+.person.boss, .bubble.boss { --pc: var(--amber); --pc-soft: var(--amber-soft); }
+.person.robin, .bubble.robin { --pc: var(--accent); --pc-soft: var(--accent-soft); }
+.person.jessi, .bubble.jessi { --pc: var(--pink); --pc-soft: var(--pink-soft); }
+.person.jerry, .bubble.jerry { --pc: var(--green); --pc-soft: var(--green-soft); }
+
+.meet-people {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px; margin-bottom: 11px;
+}
+.person {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 7px 9px;
+}
+.avatar {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; font-size: .92rem; line-height: 1;
+  background: var(--pc-soft);
+  border: 1px solid color-mix(in srgb, var(--pc) 48%, transparent);
+}
+.person-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.person-text b { font-size: .79rem; }
+.person-text small {
+  font-size: .64rem; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.live {
+  flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%;
+  margin-left: auto; background: var(--pc);
+  box-shadow: 0 0 0 3px var(--pc-soft);
+}
+
+.meet-topic {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent); border-radius: 12px;
+  padding: 8px 10px; margin-bottom: 11px; font-size: .82rem;
+}
+.meet-topic-label {
+  flex: 0 0 auto; font-size: .66rem; font-weight: 800; color: var(--accent);
+  background: var(--accent-soft); border-radius: 999px; padding: 2px 8px;
+}
+.meet-topic-text {
+  flex: 1 1 auto; min-width: 0; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.meet-topic-text.is-empty { color: var(--muted); font-weight: 500; }
+.meet-topic-text input { width: 100%; padding: 5px 8px; font-size: .82rem; }
+.meet-topic-by { flex: 0 0 auto; font-size: .68rem; color: var(--muted); }
+.meet-topic .mini-btn { flex: 0 0 auto; }
+
+.meet-room {
+  display: flex; flex-direction: column; gap: 10px;
+  height: min(46vh, 380px); min-height: 220px;
+  overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px 12px 14px;
+  scrollbar-width: thin;
+}
+.bubble {
+  display: flex; align-items: flex-start; gap: 8px;
+  max-width: min(84%, 640px);
+  animation: pop .18s ease-out;
+}
+.bubble.is-mine { margin-left: auto; flex-direction: row-reverse; }
+.bubble .avatar { width: 27px; height: 27px; font-size: .82rem; margin-top: 2px; }
+.bubble-body { display: grid; gap: 3px; min-width: 0; }
+.bubble-top { display: flex; align-items: center; gap: 6px; font-size: .66rem; color: var(--muted); }
+.bubble-top b { font-size: .71rem; color: var(--pc); }
+.bubble.is-mine .bubble-top { flex-direction: row-reverse; }
+.bubble-text {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 13px; border-top-left-radius: 5px;
+  padding: 8px 11px; font-size: .85rem; line-height: 1.55;
+  white-space: pre-wrap; overflow-wrap: anywhere; text-align: left;
+}
+.bubble.is-mine .bubble-text {
+  border-top-left-radius: 13px; border-top-right-radius: 5px;
+  background: var(--pc-soft);
+  border-color: color-mix(in srgb, var(--pc) 42%, var(--border));
+}
+.bubble-del {
+  border: 0; background: transparent; color: var(--muted);
+  font-size: .68rem; line-height: 1; padding: 2px 3px; border-radius: 6px;
+  cursor: pointer; opacity: .45; transition: .15s;
+}
+.bubble-del:hover { opacity: 1; color: var(--red); background: var(--red-soft); }
+
+.meet-form { display: grid; gap: 8px; margin-top: 11px; }
+.meet-say { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.meet-say-label { font-size: .68rem; color: var(--muted); margin-right: 2px; }
+.meet-say .chip { padding: 5px 11px; font-size: .76rem; }
+.meet-say .chip.is-on[data-say="boss"] {
+  background: var(--amber-soft); border-color: var(--amber); color: var(--amber); font-weight: 700;
+}
+.meet-say .chip.is-on[data-say="robin"] {
+  background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 700;
+}
+.meet-say .chip.is-on[data-say="jessi"] {
+  background: var(--pink-soft); border-color: var(--pink); color: var(--pink); font-weight: 700;
+}
+.meet-say .chip.is-on[data-say="jerry"] {
+  background: var(--green-soft); border-color: var(--green); color: var(--green); font-weight: 700;
+}
+.meet-input { display: flex; align-items: flex-end; gap: 8px; }
+.meet-input textarea {
+  flex: 1 1 auto; resize: none; min-height: 44px; max-height: 140px;
+  line-height: 1.5; padding: 11px 12px;
+}
+
 /* ── 반응형 ───────────────────────────────────────────────── */
 @media (max-width: 860px) {
   .kanban { grid-template-columns: 1fr; }
@@ -354,6 +465,11 @@ a.mini-link:hover { text-decoration: underline; }
   .row-form input[type="text"] { grid-column: 1 / -1; }
   .row-form .btn { grid-column: 1 / -1; }
   .money .big { font-size: 1.28rem; }
+  .meet-people { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .meet-room { height: min(52vh, 420px); }
+  .bubble { max-width: 92%; }
+  .meet-topic { flex-wrap: wrap; }
+  .meet-topic-text { white-space: normal; overflow-wrap: anywhere; }
 }
 @media (max-width: 420px) {
   .blog-row { grid-template-columns: 26px 1fr; }
