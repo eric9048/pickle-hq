@@ -2021,10 +2021,14 @@ function loungeContext(n = 10) {
     .join("\n") || "(수다 없음)";
 }
 
+function loungeCrew() {
+  return ["로빈", "제시", "제리", "제미나이"].concat(CHATGPT_ENABLED ? ["ChatGPT"] : []);
+}
+
 function loungeSystemPrompt(kind) {
   const me = PEOPLE[kind]?.name || kind;
   return [
-    `당신은 합동 비서실의 '${me}'입니다. 지금은 일이 아니라 쉬는 시간, 로빈·제시·제리·제미나이·ChatGPT와 사장님이 모인 'AI 수다방'입니다.`,
+    `당신은 합동 비서실의 '${me}'입니다. 지금은 일이 아니라 쉬는 시간, ${loungeCrew().join("·")}와 사장님이 모인 'AI 수다방'입니다.`,
     "사무적인 보고가 아니라 서로 이름을 부르며 가볍게 티키타카하는 잡담을 합니다.",
     "규칙:",
     "1) 한국어, 반말 섞은 편한 말투로 1~3문장. 인사말·자기소개·목록·보고체 금지.",
