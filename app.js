@@ -85,6 +85,9 @@ const state = {
   ownerFilter: "all",
   blogFilter: "all",
   say: PEOPLE[savedSay] ? savedSay : "boss",
+  replyTo: null,
+  selectMode: false,
+  picked: new Set(),
   ready: false
 };
 
@@ -680,13 +683,20 @@ function meetMessages() {
       id,
       from: v && v.from ? String(v.from) : "robin",
       text: v && v.text != null ? String(v.text) : "",
-      ts: Number(v && v.ts) || 0
+      ts: Number(v && v.ts) || 0,
+      replyTo: v && v.replyTo && typeof v.replyTo === "object"
+        ? {
+            id: v.replyTo.id != null ? String(v.replyTo.id) : "",
+            from: v.replyTo.from != null ? String(v.replyTo.from) : "",
+            text: v.replyTo.text != null ? String(v.replyTo.text) : ""
+          }
+        : null
     }))
     .filter(v => v.text.trim())
     .sort((a, b) => a.ts - b.ts || String(a.id).localeCompare(String(b.id)));
 }
 
-function renderMeeting() {
+function renderMeeting(force) {
   const arr = meetMessages();
   renderMeetingPeople(arr);
   renderMeetingTopic();
@@ -697,11 +707,15 @@ function renderMeeting() {
   if (mc) mc.textContent = arr.length;
 
   const room = $("#meetRoom");
+  room.classList.toggle("is-selecting", state.selectMode);
+  paintSelBar();
+
   const sig = arr.map(m => `${m.id}:${m.ts}:${m.from}:${m.text}`).join("\u0001");
-  if (sig === meetSig) return;
+  if (!force && sig === meetSig) return;
 
   const nearBottom = room.scrollHeight - room.scrollTop - room.clientHeight < 90;
   const prevLast = meetLastId;
+  const keepTop = force ? room.scrollTop : 0;
   meetSig = sig;
   meetLastId = arr.length ? arr[arr.length - 1].id : null;
 
@@ -714,16 +728,32 @@ function renderMeeting() {
   room.innerHTML = arr.map(m => {
     const p = PEOPLE[m.from] || { name: m.from, emoji: "👤" };
     const mine = m.from === "boss";
+    const rt = m.replyTo;
+    const quote = rt && (rt.text || rt.from)
+      ? `<button class="reply-quote" type="button" data-act="jump" data-target="${esc(rt.id || "")}"
+                 title="원본 말풍선으로 이동">
+           <b>${esc(PEOPLE[rt.from]?.name || rt.from || "메시지")}에게 답장</b>
+           <span>${esc(trunc(rt.text || rt.raw || "", 70))}</span>
+         </button>`
+      : "";
+    const picked = state.picked.has(m.id);
     return `
-      <div class="bubble ${esc(m.from)}${mine ? " is-mine" : ""}" data-id="${esc(m.id)}">
+      <div class="bubble ${esc(m.from)}${mine ? " is-mine" : ""}${picked ? " is-picked" : ""}" data-id="${esc(m.id)}">
+        <button class="pick" type="button" data-act="pick" data-id="${esc(m.id)}"
+                aria-pressed="${picked ? "true" : "false"}"
+                aria-label="이 말풍선 선택">${picked ? "✓" : ""}</button>
         <span class="avatar" aria-hidden="true">${p.emoji}</span>
         <div class="bubble-body">
           <div class="bubble-top">
             <b>${esc(p.name)}</b>
             <span>${clock(m.ts)}</span>
-            <button class="bubble-del" data-act="del-meet" data-id="${esc(m.id)}" type="button" title="메시지 삭제" aria-label="메시지 삭제">✕</button>
+            <div class="bubble-acts">
+              <button class="bubble-act" data-act="reply" data-id="${esc(m.id)}" type="button" title="답장" aria-label="이 메시지에 답장">↩<span class="ba-txt"> 답장</span></button>
+              <button class="bubble-act" data-act="copy" data-id="${esc(m.id)}" type="button" title="복사" aria-label="이 메시지 복사">📋<span class="ba-txt"> 복사</span></button>
+              <button class="bubble-del" data-act="del-meet" data-id="${esc(m.id)}" type="button" title="메시지 삭제" aria-label="메시지 삭제">✕</button>
+            </div>
           </div>
-          <div class="bubble-text">${esc(m.text)}</div>
+          <div class="bubble-text">${quote}${esc(m.text)}</div>
         </div>
       </div>`;
   }).join("");
@@ -731,6 +761,8 @@ function renderMeeting() {
   if (meetForceScroll || prevLast === null || nearBottom) {
     meetForceScroll = false;
     room.scrollTop = room.scrollHeight;
+  } else if (keepTop) {
+    room.scrollTop = keepTop;
   }
   if (geminiBusy || geminiErr || geminiInfo) paintGeminiNote();
 }
@@ -935,21 +967,25 @@ function sendMeet(forceGemini) {
   if (!db) return;
   const text = ta.value.trim();
   if (!text) return;
+  const reply = state.replyTo;
   const callGemini = !!forceGemini || wantsGemini(text);
   /* 방금 보낼 메시지는 따로 전달하므로, 시스템 프롬프트는 보내기 전 대화로 만듭니다. */
   const sys = callGemini ? geminiSystemPrompt() : "";
   geminiErr = "";
   geminiInfo = "";
   meetForceScroll = true;
-  push(ref(db, `${ROOT}/meeting/messages`), {
-    from: state.say,
-    text,
-    ts: Date.now()
-  });
+  const payload = { from: state.say, text, ts: Date.now() };
+  if (reply) payload.replyTo = { id: reply.id, from: reply.from, text: trunc(reply.text, 200) };
+  push(ref(db, `${ROOT}/meeting/messages`), payload);
+
+  const ask = reply
+    ? `(답장 대상 — ${PEOPLE[reply.from]?.name || reply.from}: ${trunc(reply.text, 200)})\n${text}`
+    : text;
+  clearReply();
   ta.value = "";
   autoGrow(ta);
   ta.focus();
-  if (callGemini) askGemini(text, sys);
+  if (callGemini) askGemini(ask, sys);
 }
 
 $("#meetForm").addEventListener("submit", e => {
@@ -967,11 +1003,186 @@ $("#meetText").addEventListener("keydown", e => {
 });
 
 $("#meetRoom").addEventListener("click", e => {
-  const btn = e.target.closest('[data-act="del-meet"]');
-  if (!btn || !db) return;
-  if (confirm("이 메시지를 삭제할까요?")) {
-    remove(ref(db, `${ROOT}/meeting/messages/${btn.dataset.id}`));
+  const actEl = e.target.closest("[data-act]");
+  const act = actEl ? actEl.dataset.act : "";
+
+  if (act === "del-meet") {
+    if (!db) return;
+    if (confirm("이 메시지를 삭제할까요?\n삭제하면 목록과 DB에서 바로 사라지며 되돌릴 수 없습니다.")) {
+      remove(ref(db, `${ROOT}/meeting/messages/${actEl.dataset.id}`));
+    }
+    return;
   }
+  if (act === "copy") {
+    const m = meetMessages().find(x => x.id === actEl.dataset.id);
+    if (m) doCopy(m.text);
+    return;
+  }
+  if (act === "reply") {
+    const m = meetMessages().find(x => x.id === actEl.dataset.id);
+    if (m) setReply(m);
+    return;
+  }
+  if (act === "jump") {
+    jumpToBubble(actEl.dataset.target);
+    return;
+  }
+  if (act === "pick") {
+    togglePick(actEl.dataset.id);
+    return;
+  }
+  if (state.selectMode) {
+    const b = e.target.closest(".bubble[data-id]");
+    if (b) togglePick(b.dataset.id);
+  }
+});
+
+/* ── 답장 · 복사 · 선택 ───────────────────────────────────── */
+let toastTimer = 0;
+
+function toast(msg) {
+  const el = $("#toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 1700);
+}
+
+async function copyText(text) {
+  const value = String(text || "");
+  if (!value) return false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch (err) { /* 아래 폴백으로 */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, value.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (err) {
+    return false;
+  }
+}
+
+function doCopy(text) {
+  copyText(text).then(ok => {
+    toast(ok ? "복사했습니다" : "복사하지 못했습니다 — 본문을 길게 눌러 선택해 주세요");
+  });
+}
+
+/* 답장 */
+function setReply(m) {
+  state.replyTo = { id: m.id, from: m.from, text: m.text };
+  paintReply();
+  const ta = $("#meetText");
+  if (ta) ta.focus();
+}
+
+function clearReply() {
+  state.replyTo = null;
+  paintReply();
+}
+
+function paintReply() {
+  const bar = $("#meetReply");
+  if (!bar) return;
+  const r = state.replyTo;
+  bar.hidden = !r;
+  if (!r) return;
+  const who = $("#meetReplyWho");
+  const snip = $("#meetReplySnip");
+  if (who) who.textContent = PEOPLE[r.from]?.name || r.from || "메시지";
+  if (snip) snip.textContent = trunc(r.text, 60);
+}
+
+$("#meetReplyCancel").addEventListener("click", () => { clearReply(); $("#meetText").focus(); });
+
+function jumpToBubble(id) {
+  if (!id) { toast("원본 메시지를 찾을 수 없습니다"); return; }
+  const room = $("#meetRoom");
+  const el = [...room.querySelectorAll(".bubble[data-id]")].find(b => b.dataset.id === id);
+  if (!el) { toast("원본 메시지가 삭제되어 찾을 수 없습니다"); return; }
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  el.classList.add("is-flash");
+  setTimeout(() => el.classList.remove("is-flash"), 1600);
+}
+
+/* 선택 모드 */
+function paintSelBar() {
+  const bar = $("#meetSelBar");
+  const btn = $("#meetSelectBtn");
+  if (btn) {
+    btn.classList.toggle("is-on", state.selectMode);
+    btn.setAttribute("aria-pressed", state.selectMode ? "true" : "false");
+    btn.textContent = state.selectMode ? "☑ 선택 중" : "☑ 선택";
+  }
+  if (bar) bar.hidden = !state.selectMode;
+  const c = $("#meetSelCount");
+  if (c) c.textContent = `${state.picked.size}개 선택`;
+}
+
+function toggleSelectMode(on) {
+  state.selectMode = typeof on === "boolean" ? on : !state.selectMode;
+  if (!state.selectMode) state.picked.clear();
+  renderMeeting(true);
+}
+
+function togglePick(id) {
+  if (!state.selectMode || !id) return;
+  if (state.picked.has(id)) state.picked.delete(id);
+  else state.picked.add(id);
+  const el = [...$("#meetRoom").querySelectorAll(".bubble[data-id]")].find(b => b.dataset.id === id);
+  if (el) {
+    const on = state.picked.has(id);
+    el.classList.toggle("is-picked", on);
+    const p = el.querySelector(".pick");
+    if (p) { p.setAttribute("aria-pressed", on ? "true" : "false"); p.textContent = on ? "✓" : ""; }
+  }
+  paintSelBar();
+}
+
+$("#meetSelectBtn").addEventListener("click", () => toggleSelectMode());
+$("#meetSelDone").addEventListener("click", () => toggleSelectMode(false));
+
+$("#meetSelAll").addEventListener("click", () => {
+  const arr = meetMessages();
+  if (!arr.length) return;
+  if (state.picked.size >= arr.length) state.picked.clear();
+  else arr.forEach(m => state.picked.add(m.id));
+  renderMeeting(true);
+});
+
+$("#meetSelCopy").addEventListener("click", () => {
+  const arr = meetMessages().filter(m => state.picked.has(m.id));
+  if (!arr.length) { toast("먼저 말풍선을 골라 주세요"); return; }
+  const body = arr.map(m => {
+    const who = PEOPLE[m.from]?.name || m.from;
+    return `[${who} ${clock(m.ts)}] ${m.text}`;
+  }).join("\n");
+  copyText(body).then(ok => {
+    toast(ok ? `${arr.length}개 메시지를 복사했습니다` : "복사하지 못했습니다 — 본문을 길게 눌러 선택해 주세요");
+  });
+});
+
+$("#meetSelDel").addEventListener("click", () => {
+  if (!db) return;
+  const ids = [...state.picked];
+  if (!ids.length) { toast("먼저 말풍선을 골라 주세요"); return; }
+  if (!confirm(`선택한 ${ids.length}개 메시지를 삭제할까요?\n삭제하면 목록과 DB에서 바로 사라지며 되돌릴 수 없습니다.`)) return;
+  ids.forEach(id => remove(ref(db, `${ROOT}/meeting/messages/${id}`)));
+  state.picked.clear();
+  renderMeeting(true);
+  toast(`${ids.length}개 메시지를 삭제했습니다`);
 });
 
 paintSay();

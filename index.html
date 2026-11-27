@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="dark light">
 <title>합동 비서실</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏢%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=20261127m">
+<link rel="stylesheet" href="style.css?v=20261127n">
 </head>
 <body>
 
@@ -69,7 +69,10 @@
     <section class="view" data-view="meeting" hidden>
       <div class="view-head">
         <h2>💬 합동 회의실</h2>
-        <span class="hint" id="meetSummary">참여자 5명</span>
+        <div class="view-head-right">
+          <span class="hint" id="meetSummary">참여자 5명</span>
+          <button class="toggle-btn" id="meetSelectBtn" type="button" aria-pressed="false" title="말풍선을 골라 한꺼번에 복사·삭제">☑ 선택</button>
+        </div>
       </div>
 
       <div class="subnav" data-subnav="meeting">
@@ -88,9 +91,22 @@
             <button class="mini-btn" id="meetTopicEdit" type="button" title="안건 수정">✏️ 수정</button>
           </div>
 
+          <div class="meet-selbar" id="meetSelBar" hidden>
+            <span class="sel-count" id="meetSelCount">0개 선택</span>
+            <button class="mini-btn" id="meetSelAll" type="button">전체 선택</button>
+            <button class="mini-btn" id="meetSelCopy" type="button">📋 선택 복사</button>
+            <button class="mini-btn danger" id="meetSelDel" type="button">🗑 선택 삭제</button>
+            <button class="mini-btn" id="meetSelDone" type="button">선택 끝내기</button>
+          </div>
+
           <div class="meet-room" id="meetRoom" role="log" aria-live="polite" aria-label="회의 메시지"></div>
 
           <form id="meetForm" class="meet-form" autocomplete="off">
+            <div class="meet-reply" id="meetReply" hidden>
+              <span class="meet-reply-ico" aria-hidden="true">↩</span>
+              <span class="meet-reply-text"><b id="meetReplyWho"></b>에게 답장: <span id="meetReplySnip"></span></span>
+              <button class="mini-btn" id="meetReplyCancel" type="button" aria-label="답장 취소">✕</button>
+            </div>
             <div class="meet-say" id="meetSay" role="group" aria-label="발화자 선택">
               <span class="meet-say-label">말하는 사람</span>
               <button class="chip is-on" data-say="boss" type="button">👑 사장님</button>
@@ -296,6 +312,8 @@
   </div>
 </div>
 
-<script type="module" src="app.js?v=20261127m"></script>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="module" src="app.js?v=20261127n"></script>
 </body>
 </html>
