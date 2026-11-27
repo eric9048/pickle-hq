@@ -623,7 +623,7 @@ function renderMeetingPeople(arr) {
     const ts = lastBy[k];
     const status = k === "boss" ? "접속 중" : "참여 중";
     const sub =
-      `${p.role} · ${status}` + (ts ? ` · ${clock(ts)}` : "");
+      (k === "boss" ? status : `${p.role} · ${status}`) + (ts ? ` · ${clock(ts)}` : "");
     return `
       <div class="person ${k}" title="${esc(p.name)} · ${esc(sub)}">
         <span class="avatar" aria-hidden="true">${p.emoji}</span>
