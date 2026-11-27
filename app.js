@@ -105,6 +105,35 @@ function won(n) {
   return "₩" + v.toLocaleString("ko-KR");
 }
 
+/* ── 캐릭터 아바타 ──────────────────────────────────────────
+   assets/avatars/{key}.png 를 원형으로 보여 주고, 이미지가 없거나
+   로드에 실패하면 기존 이모지로 자연스럽게 되돌아갑니다. */
+const AVATAR_VER = "20261127p";
+function avatarHtml(key, cls = "") {
+  const p = PEOPLE[key] || {};
+  const emoji = p.emoji || "👤";
+  const k = String(key || "");
+  return `<span class="avatar${cls ? " " + cls : ""}" data-avatar="${esc(k)}" aria-hidden="true">`
+    + `<img src="assets/avatars/${esc(k)}.png?v=${AVATAR_VER}" alt="" decoding="async" loading="lazy" onerror="this.remove()">`
+    + `<span class="av-fb">${emoji}</span></span>`;
+}
+
+/* 말하는 사람 칩과 담당자 필터 칩에도 같은 아바타를 붙입니다.
+   (이미지가 없으면 위 avatarHtml 의 이모지 폴백이 그대로 보입니다.) */
+function paintChipAvatars() {
+  $$("#meetSay .chip[data-say]").forEach(c => {
+    const k = c.dataset.say;
+    if (!PEOPLE[k] || c.querySelector(".avatar")) return;
+    c.innerHTML = avatarHtml(k, "xs") + `<span>${esc(PEOPLE[k].name)}</span>`;
+  });
+  $$("#ownerFilters .chip[data-owner]").forEach(c => {
+    const k = c.dataset.owner;
+    if (k === "all" || !OWNER[k] || c.querySelector(".avatar")) return;
+    c.innerHTML = avatarHtml(k, "xs") + `<span>${esc(OWNER[k])}</span>`;
+  });
+}
+paintChipAvatars();
+
 function timeAgo(ts) {
   if (!ts) return "";
   const diff = Math.floor((Date.now() - Number(ts)) / 1000);
@@ -304,7 +333,10 @@ function taskCard(t) {
       <div class="task-title">${esc(t.title)}</div>
       ${desc}
       <div class="task-meta">
-        <select data-act="owner" data-id="${t.id}" aria-label="담당자 변경">${opts}</select>
+        <span class="owner-pick" title="담당자 · ${esc(OWNER[t.owner] || t.owner)}">
+          ${avatarHtml(t.owner, "xs")}
+          <select data-act="owner" data-id="${t.id}" aria-label="담당자 변경">${opts}</select>
+        </span>
         ${execTagHtml(t)}
         <span class="hint">${timeAgo(t.updatedAt || t.createdAt)}</span>
         <div class="task-actions">
@@ -621,7 +653,7 @@ function renderFeed() {
   box.innerHTML = arr.map(m => `
     <div class="msg">
       <div class="msg-top">
-        <span class="who ${esc(m.from)}">${esc(OWNER[m.from] || m.from)}</span>
+        <span class="who ${esc(m.from)}">${avatarHtml(m.from, "xs")}<span>${esc(OWNER[m.from] || m.from)}</span></span>
         <span class="msg-time">${timeAgo(m.ts)}</span>
         <button class="mini-btn danger" data-act="del-feed" data-id="${m.id}" type="button" title="삭제">✕</button>
       </div>
@@ -742,7 +774,7 @@ function renderMeeting(force) {
         <button class="pick" type="button" data-act="pick" data-id="${esc(m.id)}"
                 aria-pressed="${picked ? "true" : "false"}"
                 aria-label="이 말풍선 선택">${picked ? "✓" : ""}</button>
-        <span class="avatar" aria-hidden="true">${p.emoji}</span>
+        ${avatarHtml(m.from)}
         <div class="bubble-body">
           <div class="bubble-top">
             <b>${esc(p.name)}</b>
@@ -829,7 +861,7 @@ function renderMeetingPeople(arr) {
       const sub = status + (ts ? ` · ${clock(ts)}` : "");
       return `
       <div class="person boss" title="${esc(p.name)} · ${esc(sub)}">
-        <span class="avatar" aria-hidden="true">${p.emoji}</span>
+        ${avatarHtml(k)}
         <span class="person-text">
           <b>${esc(p.name)} <span class="live" aria-hidden="true"></span></b>
           <small>${esc(sub)}</small>
@@ -850,7 +882,7 @@ function renderMeetingPeople(arr) {
       <button class="person gemini" type="button" data-gemini="settings" data-on="${on ? "true" : "false"}"
               title="${esc(title)}"
               aria-label="${esc(title)}">
-        <span class="avatar" aria-hidden="true">${p.emoji}</span>
+        ${avatarHtml(k)}
         <span class="person-text">
           <b>${esc(p.name)} <span class="live" aria-hidden="true"></span></b>
           <small class="u-label">${esc(label)}</small>
@@ -872,7 +904,7 @@ function renderMeetingPeople(arr) {
       <button class="person ${k} has-usage" type="button" data-usage="${k}" data-tone="${u.tone}"
               title="${esc(title)}"
               aria-label="${esc(aria)}">
-        <span class="avatar" aria-hidden="true">${p.emoji}</span>
+        ${avatarHtml(k)}
         <span class="person-text">
           <b>${esc(p.name)} <span class="live" aria-hidden="true"></span></b>
           <small class="u-label"><span class="u-use">${u.pct == null ? "" : `사용 ${u.pct}% · `}</span>${esc(u.label)}</small>
@@ -1269,7 +1301,7 @@ function geminiNoteHtml(kind, text) {
     : esc(text);
   return `
     <div class="bubble gemini is-${kind}" data-gemini-note="1" role="status">
-      <span class="avatar" aria-hidden="true">💎</span>
+      ${avatarHtml("gemini")}
       <div class="bubble-body">
         <div class="bubble-top"><b>제미나이</b><span>${kind === "loading" ? "작성 중" : "안내"}</span></div>
         <div class="bubble-text">${body}</div>
@@ -1516,6 +1548,7 @@ function renderHome() {
   $("#homeGrid").innerHTML = `
     <button class="home-card meet" data-go="meeting" type="button">
       <span class="hc-top">💬 합동 회의실</span>
+      <span class="hc-avs">${PEOPLE_ORDER.map(k => avatarHtml(k, "sm")).join("")}</span>
       <span class="hc-big">${msgs.length}개 메시지</span>
       <span class="hc-sub">${last
         ? `${esc(PEOPLE[last.from]?.name || last.from)} · ${clock(last.ts)} — ${esc(trunc(last.text, 34))}`
@@ -1695,7 +1728,10 @@ function openTaskSheet(id, savedAt, flash) {
     </div>
     <div class="sheet-row">
       <span class="k">담당자</span>
-      <select data-act="task-owner" data-id="${t.id}" aria-label="담당자 변경">${ownerOpts}</select>
+      <span class="owner-pick">
+        ${avatarHtml(t.owner, "sm")}
+        <select data-act="task-owner" data-id="${t.id}" aria-label="담당자 변경">${ownerOpts}</select>
+      </span>
     </div>
     <div class="sheet-row"><span class="k">현재 상태</span><span class="v">${STATUS[t.status] || t.status}</span></div>
     <div class="sheet-row"><span class="k">최근 갱신</span><span class="v">${stamp}</span></div>

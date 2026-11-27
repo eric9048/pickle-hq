@@ -339,12 +339,14 @@ a.mini-link:hover { text-decoration: underline; }
 }
 .msg-top { display: flex; align-items: center; gap: 8px; }
 .who {
-  font-size: .72rem; font-weight: 800; border-radius: 999px; padding: 2px 9px;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .72rem; font-weight: 800; border-radius: 999px; padding: 2px 10px 2px 3px;
+  background: var(--surface);
 }
-.who.robin { background: var(--accent-soft); color: var(--accent); }
-.who.jessi { background: var(--pink-soft); color: var(--pink); }
-.who.jerry { background: var(--green-soft); color: var(--green); }
-.who.boss { background: var(--amber-soft); color: var(--amber); }
+.who.robin { --pc: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.who.jessi { --pc: var(--pink); background: var(--pink-soft); color: var(--pink); }
+.who.jerry { --pc: var(--green); background: var(--green-soft); color: var(--green); }
+.who.boss { --pc: var(--amber); background: var(--amber-soft); color: var(--amber); }
 .msg-time { font-size: .68rem; color: var(--muted); margin-left: auto; }
 .msg-text { font-size: .84rem; white-space: pre-wrap; line-height: 1.55; }
 
@@ -368,14 +370,37 @@ a.mini-link:hover { text-decoration: underline; }
 .person {
   display: flex; align-items: center; gap: 8px; min-width: 0;
   background: var(--surface-2); border: 1px solid var(--border);
-  border-radius: 12px; padding: 7px 9px;
+  border-radius: 14px; padding: 8px 10px;
+  transition: border-color .15s, transform .15s, box-shadow .15s;
 }
+button.person:hover .avatar { transform: scale(1.06); }
 .avatar {
-  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+  position: relative; flex: 0 0 auto;
+  width: 32px; height: 32px; border-radius: 50%;
   display: grid; place-items: center; font-size: .92rem; line-height: 1;
   background: var(--pc-soft);
-  border: 1px solid color-mix(in srgb, var(--pc) 48%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--pc) 52%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--pc) 24%, transparent);
+  overflow: hidden;
 }
+.avatar img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: 50% 42%;
+  display: block;
+}
+.avatar .av-fb { display: grid; place-items: center; width: 100%; height: 100%; }
+.avatar.xs {
+  width: 20px; height: 20px; font-size: .6rem;
+  border-width: 1px; box-shadow: none;
+}
+.avatar.sm { width: 26px; height: 26px; font-size: .74rem; border-width: 1px; }
+.avatar.xs .av-fb, .avatar.sm .av-fb { font-size: inherit; }
+
+/* 칩·배지·담당자 표시처럼 작은 곳에 들어가는 아바타 */
+.chip .avatar, .who .avatar, .owner-pick .avatar { flex: 0 0 auto; }
+.chip:has(.avatar) { display: inline-flex; align-items: center; gap: 6px; padding-left: 5px; }
+.owner-pick { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
 .person-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
 .person-text b { font-size: .79rem; }
 .person-text small {
@@ -513,7 +538,7 @@ button.person:focus-visible { outline: 2px solid var(--accent); outline-offset: 
   animation: pop .18s ease-out;
 }
 .bubble.is-mine { margin-left: auto; flex-direction: row-reverse; }
-.bubble .avatar { width: 27px; height: 27px; font-size: .82rem; margin-top: 2px; }
+.bubble .avatar { width: 28px; height: 28px; font-size: .82rem; margin-top: 1px; border-width: 1px; }
 .bubble-body { display: grid; gap: 3px; min-width: 0; }
 .bubble-top { display: flex; align-items: center; gap: 6px; font-size: .66rem; color: var(--muted); }
 .bubble-top b { font-size: .71rem; color: var(--pc); }
@@ -760,6 +785,9 @@ button.person:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 .home-card.content { border-left-color: var(--pink); }
 .home-card.revenue { border-left-color: var(--green); }
 .hc-top { display: flex; align-items: center; gap: 7px; font-size: .8rem; font-weight: 700; color: var(--muted); }
+.hc-avs { display: flex; align-items: center; }
+.hc-avs .avatar { margin-left: -7px; border: 2px solid var(--surface); box-shadow: none; }
+.hc-avs .avatar:first-child { margin-left: 0; }
 .hc-big { font-size: 1.32rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.25; }
 .hc-sub { font-size: .75rem; color: var(--muted); line-height: 1.45; }
 .hc-go { font-size: .72rem; font-weight: 700; color: var(--accent); margin-top: 2px; }
@@ -881,6 +909,39 @@ button.person:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 .sheet-danger { display: grid; gap: 6px; }
 .sheet-danger .sheet-hint { text-align: center; }
 
+/* ── 캐릭터 톤 · 조금 더 화사하게 ──────────────────────────── */
+.brand .logo {
+  background: linear-gradient(135deg, var(--accent-soft), var(--blue-soft));
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.topbar { border-bottom-color: color-mix(in srgb, var(--accent) 20%, var(--border)); }
+.nav-btn.is-on {
+  background: linear-gradient(135deg, var(--accent-soft), color-mix(in srgb, var(--blue-soft) 60%, transparent));
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.card {
+  background-image: linear-gradient(180deg,
+    color-mix(in srgb, var(--surface-2) 45%, transparent), transparent 140px);
+}
+.col-head { padding: 3px 6px; border-radius: 9px; }
+.col[data-status="doing"] .col-head { color: var(--blue); background: var(--blue-soft); }
+.col[data-status="waiting"] .col-head { color: var(--amber); background: var(--amber-soft); }
+.col[data-status="done"] .col-head { color: var(--green); background: var(--green-soft); }
+.col-head .count { background: var(--surface); color: var(--muted); }
+.home-card.meet:hover { box-shadow: 0 12px 28px color-mix(in srgb, var(--amber) 22%, transparent); }
+.home-card.tasks:hover { box-shadow: 0 12px 28px color-mix(in srgb, var(--blue) 22%, transparent); }
+.home-card.content:hover { box-shadow: 0 12px 28px color-mix(in srgb, var(--pink) 22%, transparent); }
+.home-card.revenue:hover { box-shadow: 0 12px 28px color-mix(in srgb, var(--green) 22%, transparent); }
+.msg { border-left: 3px solid var(--border); }
+.msg:has(.who.robin) { border-left-color: var(--accent); }
+.msg:has(.who.jessi) { border-left-color: var(--pink); }
+.msg:has(.who.jerry) { border-left-color: var(--green); }
+.msg:has(.who.boss) { border-left-color: var(--amber); }
+.meet-say .chip { padding-left: 5px; }
+.meet-say .chip.is-on .avatar { box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 30%, transparent); }
+
 /* ── 반응형 ───────────────────────────────────────────────── */
 @media (max-width: 860px) {
   .kanban { grid-template-columns: 1fr; }
@@ -912,7 +973,9 @@ button.person:focus-visible { outline: 2px solid var(--accent); outline-offset: 
     gap: 5px; padding: 9px 4px 8px; text-align: center;
   }
   .person.has-usage { padding: 9px 4px 8px; }
-  .avatar { grid-row: 1; width: 24px; height: 24px; font-size: .78rem; }
+  .avatar { grid-row: 1; width: 32px; height: 32px; font-size: .82rem; }
+  .avatar.xs { width: 18px; height: 18px; font-size: .55rem; }
+  .avatar.sm { width: 24px; height: 24px; font-size: .66rem; }
   .donut { grid-row: 2; margin: 0; width: 40px; height: 40px; }
   .key-mark { grid-row: 2; margin: 0; width: 26px; height: 26px; font-size: .72rem; }
   .person-text { grid-row: 3; align-items: center; width: 100%; }
