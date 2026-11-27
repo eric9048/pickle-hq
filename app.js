@@ -1703,7 +1703,7 @@ function chatgptErrorText(status, data) {
   if (status === 401) return "OpenAI API 키가 올바르지 않거나 취소된 키입니다 (HTTP 401). 🤖 설정에서 키를 다시 확인해 주세요.";
   if (status === 403) return "이 키로는 호출이 허용되지 않습니다 (HTTP 403). 키 권한·결제 상태·지역 제한을 확인해 주세요.";
   if (code === "insufficient_quota") return "이 키의 사용 한도·크레딧이 바닥났습니다 (quota). OpenAI 결제·사용량 페이지에서 크레딧을 확인해 주세요.";
-  if (status === 429) return "요청이 너무 많거나 사용 한도를 넘었습니다 (HTTP 429). 잠시 뒤 다시 시도해 주세요.";
+  if (status === 429) return "요청이 너무 많거나 사용 한도를 넘었습니다 (HTTP 429). OpenAI 결제·크레딧(Billing) 잔액과 요금제 한도를 확인해 주세요 — 크레딧이 0이면 이 429가 납니다.";
   if (status === 404 || code === "model_not_found") return "이 키로는 어떤 GPT 모델도 응답하지 않았습니다 (HTTP 404). 🤖 설정에서 gpt-4o-mini로 바꾸거나 새 키를 발급해 주세요.";
   if (status === 400) return "요청이 거부되었습니다 (HTTP 400). 키와 모델을 확인해 주세요." + (msg ? ` — ${trunc(msg, 90)}` : "");
   if (status >= 500) return `OpenAI 서버가 잠시 응답하지 않습니다 (HTTP ${status}). 잠시 뒤 다시 시도해 주세요.`;
