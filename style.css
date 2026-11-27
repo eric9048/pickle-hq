@@ -814,17 +814,8 @@ button.person:focus-visible { outline: 2px solid var(--accent); outline-offset: 
   .sheet-card { width: 100%; max-height: 88vh; border-radius: 20px 20px 0 0; }
 }
 @media (max-width: 560px) {
-  /* 참여자 5명 — 한 줄을 가로로 밀어서 봅니다(카드가 너무 좁아지지 않게). */
-  .meet-people {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(104px, 1fr);
-    gap: 6px;
-    overflow-x: auto; overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity; scrollbar-width: thin;
-    padding-bottom: 5px;
-  }
-  .meet-people .person { scroll-snap-align: start; }
+  /* 참여자 5명 — 3열 2줄로 접어 다섯 명이 한눈에 보이게 합니다. */
+  .meet-people { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
   .person {
     display: grid; grid-template-columns: 1fr; justify-items: center;
     gap: 5px; padding: 9px 4px 8px; text-align: center;
