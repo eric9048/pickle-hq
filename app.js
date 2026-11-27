@@ -899,7 +899,7 @@ function donutSvg(pct, tone) {
 /* 제미나이·ChatGPT — API 키 연결 상태 카드. 누르면 키 설정 시트가 열립니다. */
 function aiPersonCard(k, on, model, attr, where) {
   const p = PEOPLE[k];
-  const label = on ? "API 키 연결됨" : "API 키 미설정";
+  const label = on ? "키 연결됨" : "키 미설정";
   const sub2 = on ? model : "눌러서 입력";
   const title = on
     ? `${p.name} · ${label} · ${model} — 눌러서 키·모델 변경`

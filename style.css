@@ -447,6 +447,8 @@ button.person:focus-visible { outline: 2px solid var(--accent); outline-offset: 
 .person-text b { display: inline-flex; align-items: center; gap: 5px; }
 .person-text .live { margin-left: 0; }
 .u-label { font-weight: 700; color: var(--tone, var(--pc)); }
+/* 참여자가 6명이 되면서 카드가 좁아짐 — 사용률은 도넛이 보여 주므로 글자에서는 뺀다. */
+.person.has-usage .u-use { display: none; }
 .u-time { opacity: .9; }
 
 /* ── 제미나이 · ChatGPT 카드 ─────────────────────────────────── */
