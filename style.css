@@ -450,7 +450,7 @@ a.mini-link:hover { text-decoration: underline; }
 .meet-input { display: flex; align-items: flex-end; gap: 8px; }
 .meet-input textarea {
   flex: 1 1 auto; resize: none; min-height: 44px; max-height: 140px;
-  line-height: 1.5; padding: 11px 12px;
+  line-height: 1.5; padding: 11px 12px; overflow-y: hidden;
 }
 
 /* ── 반응형 ───────────────────────────────────────────────── */

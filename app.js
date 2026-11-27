@@ -702,7 +702,9 @@ $("#meetSay").addEventListener("click", e => {
 
 function autoGrow(ta) {
   ta.style.height = "auto";
-  ta.style.height = Math.min(ta.scrollHeight, 140) + "px";
+  const need = ta.scrollHeight + 2; // border 1px × 2
+  ta.style.height = Math.min(need, 140) + "px";
+  ta.style.overflowY = need > 140 ? "auto" : "hidden";
 }
 
 function sendMeet() {
