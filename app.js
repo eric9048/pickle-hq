@@ -59,7 +59,11 @@ const PEOPLE = {
   gemini: { name: "제미나이", emoji: "💎", role: "전략 파트너" },
   chatgpt: { name: "ChatGPT", emoji: "🤖", role: "전략 파트너" }
 };
-const PEOPLE_ORDER = ["boss", "robin", "jessi", "jerry", "gemini", "chatgpt"];
+/* 2026-11-27 사장님 지시("비서실에서 ChatGPT 친구는 빼버리자")로 잠시 숨김.
+   OpenAI 크레딧을 충전해 다시 쓸 때 이 값을 true로 바꾸면 카드·칩·자동응답·수다방이 모두 복구됩니다. */
+const CHATGPT_ENABLED = false;
+const PEOPLE_ORDER = ["boss", "robin", "jessi", "jerry", "gemini"]
+  .concat(CHATGPT_ENABLED ? ["chatgpt"] : []);
 
 /* 회의실 "누구에게 말하기" — 사장님 발언(from:"boss")에 붙는 대상입니다. */
 const TO_KEY = "hq.meet.to.v1";
@@ -70,7 +74,7 @@ function savedAudience() {
   try {
     const raw = JSON.parse(localStorage.getItem(TO_KEY) || "null");
     if (Array.isArray(raw)) {
-      const keys = raw.filter(k => AUDIENCE_ORDER.includes(k));
+      const keys = raw.filter(k => AUDIENCE_ORDER.includes(k) && (k !== "chatgpt" || CHATGPT_ENABLED));
       if (keys.includes(ALL_TO)) return new Set([ALL_TO]);
       if (keys.length) return new Set(keys);
     }
@@ -922,7 +926,9 @@ function renderMeetingPeople(arr) {
   const lastBy = {};
   arr.forEach(m => { lastBy[m.from] = m.ts; });
 
-  $("#meetPeople").innerHTML = PEOPLE_ORDER.map(k => {
+  const peopleEl = $("#meetPeople");
+  peopleEl.dataset.count = String(PEOPLE_ORDER.length);
+  peopleEl.innerHTML = PEOPLE_ORDER.map(k => {
     const p = PEOPLE[k];
     const ts = lastBy[k];
     const status = k === "boss" ? "접속 중" : "참여 중";
@@ -1043,7 +1049,7 @@ function paintAudience() {
 function audienceList() {
   const a = state.audience;
   if (!a || !a.size || a.has(ALL_TO)) return [ALL_TO];
-  return AUDIENCE_ORDER.filter(k => k !== ALL_TO && a.has(k));
+  return AUDIENCE_ORDER.filter(k => k !== ALL_TO && a.has(k) && (k !== "chatgpt" || CHATGPT_ENABLED));
 }
 
 function audienceLabel(list) {
@@ -1090,12 +1096,13 @@ function openBotSheet(b) {
 
 /* 이 메시지에 답할 AI 목록 — 선택한 대상 중 AI + @로 직접 부른 AI */
 function botsToCall(text, targets) {
+  const aiAll = CHATGPT_ENABLED ? ["gemini", "chatgpt"] : ["gemini"];
   let list = targets.includes(ALL_TO)
-    ? ["gemini", "chatgpt"]
-    : targets.filter(k => k === "gemini" || k === "chatgpt");
+    ? aiAll
+    : targets.filter(k => aiAll.includes(k));
   list = [...list];
   if (/@\s*(제미나이|gemini)/i.test(text) && !list.includes("gemini")) list.push("gemini");
-  if (/@\s*(chatgpt|챗gpt|챗지피티|openai)/i.test(text) && !list.includes("chatgpt")) list.push("chatgpt");
+  if (CHATGPT_ENABLED && /@\s*(chatgpt|챗gpt|챗지피티|openai)/i.test(text) && !list.includes("chatgpt")) list.push("chatgpt");
   return list;
 }
 
@@ -1978,7 +1985,7 @@ function renderLounge(force) {
   if (!room) return;
   const arr = loungeMessages();
   const sum = $("#loungeSummary");
-  if (sum) sum.textContent = arr.length ? `${arr.length}마디 · 다섯 AI` : "아직 조용함";
+  if (sum) sum.textContent = arr.length ? `${arr.length}마디 · AI 수다` : "아직 조용함";
 
   const sig = arr.map(m => `${m.id}:${m.ts}:${m.from}:${m.text}`).join("\u0001");
   if (!force && sig === loungeSig) return;
@@ -2114,7 +2121,7 @@ function loungeSleep(ms) {
 /* 제미나이 → ChatGPT 순서로 한마디씩 주고받게 합니다. */
 async function loungeRelay(turns = 4) {
   if (loungeBusy) return;
-  const order = ["gemini", "chatgpt"].filter(b => botKey(b));
+  const order = (CHATGPT_ENABLED ? ["gemini", "chatgpt"] : ["gemini"]).filter(b => botKey(b));
   if (!order.length) {
     toast("제미나이 또는 ChatGPT 키가 필요합니다");
     openGeminiSheet();

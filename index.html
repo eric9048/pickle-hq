@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="dark light">
 <title>합동 비서실</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏢%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=20261127w">
+<link rel="stylesheet" href="style.css?v=20261127x">
 </head>
 <body>
 
@@ -70,7 +70,7 @@
       <div class="view-head">
         <h2>💬 합동 회의실</h2>
         <div class="view-head-right">
-          <span class="hint" id="meetSummary">참여자 6명</span>
+          <span class="hint" id="meetSummary">참여자 5명</span>
           <button class="toggle-btn" id="meetSelectBtn" type="button" aria-pressed="false" title="말풍선을 골라 한꺼번에 복사·삭제">☑ 선택</button>
         </div>
       </div>
@@ -83,7 +83,7 @@
 
       <div class="pane" data-pane="room">
         <div class="card">
-          <div class="meet-people" id="meetPeople" aria-label="회의실 참여자"></div>
+          <div class="meet-people" id="meetPeople" data-count="5" aria-label="회의실 참여자"></div>
 
           <div class="meet-topic">
             <span class="meet-topic-label">안건</span>
@@ -115,7 +115,9 @@
               <button class="chip" data-to="jessi" type="button">✨ 제시</button>
               <button class="chip" data-to="jerry" type="button">🍀 제리</button>
               <button class="chip" data-to="gemini" type="button">💎 제미나이</button>
+              <!-- 2026-11-27 사장님 지시로 ChatGPT 칩 숨김. app.js의 CHATGPT_ENABLED=true로 되돌리면 이 줄을 복구하세요.
               <button class="chip" data-to="chatgpt" type="button">🤖 ChatGPT</button>
+              -->
             </div>
             <div class="meet-input">
               <textarea id="meetText" rows="1" placeholder="모두에게 말하기 · Enter 전송 · Shift+Enter 줄바꿈" aria-label="회의 메시지" required></textarea>
@@ -155,7 +157,7 @@
           </div>
 
           <div class="lounge-bar">
-            <span class="lounge-guide">로빈 · 제시 · 제리 · 제미나이 · ChatGPT가 서로 수다 떠는 화면입니다. 버튼을 누르면 설정된 AI가 최근 맥락을 이어받아 제미나이 → ChatGPT 순서로 한마디씩 주고받아요.</span>
+            <span class="lounge-guide">로빈 · 제시 · 제리 · 제미나이가 서로 수다 떠는 화면입니다. 버튼을 누르면 설정된 AI가 최근 맥락을 이어받아 한마디씩 주고받아요.</span>
             <button class="btn primary lounge-play" id="loungePlayBtn" type="button" title="설정된 AI끼리 수다를 이어 갑니다">🎲 수다 한 판 돌리기</button>
           </div>
 
@@ -329,6 +331,6 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-<script type="module" src="app.js?v=20261127w"></script>
+<script type="module" src="app.js?v=20261127x"></script>
 </body>
 </html>
