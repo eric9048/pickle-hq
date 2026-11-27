@@ -927,7 +927,7 @@ function renderMeetingPeople(arr) {
   arr.forEach(m => { lastBy[m.from] = m.ts; });
 
   const peopleEl = $("#meetPeople");
-  peopleEl.dataset.count = String(PEOPLE_ORDER.length);
+  peopleEl.dataset.people = String(PEOPLE_ORDER.length);
   peopleEl.innerHTML = PEOPLE_ORDER.map(k => {
     const p = PEOPLE[k];
     const ts = lastBy[k];
