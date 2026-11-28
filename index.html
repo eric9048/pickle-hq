@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="dark light">
 <title>합동 비서실</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏢%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=20261127ab">
+<link rel="stylesheet" href="style.css?v=20261128a">
 </head>
 <body>
 
@@ -261,12 +261,20 @@
         <div class="card">
           <div class="sub-head">
             <h3>네이버 블로그 <span class="tag">eric_pm</span></h3>
-            <div class="filters small" id="blogFilters">
-              <button class="chip is-on" data-blog="all" type="button">전체</button>
-              <button class="chip" data-blog="published" type="button">발행 완료</button>
-              <button class="chip" data-blog="draft" type="button">임시저장</button>
+            <div class="blog-tools">
+              <div class="filters small" id="blogFilters">
+                <button class="chip is-on" data-blog="all" type="button">전체</button>
+                <button class="chip" data-blog="published" type="button">발행 완료</button>
+                <button class="chip" data-blog="draft" type="button">임시저장</button>
+              </div>
+              <div class="filters small" id="blogSort">
+                <button class="chip is-on" data-sort="views" type="button" title="누적 조회수가 많은 글부터">조회순</button>
+                <button class="chip" data-sort="latest" type="button">최신순</button>
+                <button class="chip" data-sort="no" type="button">호수순</button>
+              </div>
             </div>
           </div>
+          <p class="blog-note" id="blogViewsNote">👁 조회수는 네이버 블로그 통계의 글별 <b>누적</b> 조회수입니다(2026-11-28 21:28 기준) · 기본 정렬은 조회 많은 순</p>
           <div class="blog-list tall" id="blogList"></div>
         </div>
       </div>
@@ -331,6 +339,6 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-<script type="module" src="app.js?v=20261127ab"></script>
+<script type="module" src="app.js?v=20261128a"></script>
 </body>
 </html>

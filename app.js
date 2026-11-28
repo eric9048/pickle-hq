@@ -47,6 +47,8 @@ const EXEC_TAG = {
   completed: "📢 완료 보고"
 };
 const BLOG_STATUS = { published: "발행 완료", draft: "임시저장", hidden: "비공개" };
+/* 블로그 목록 정렬 — 기본은 누적 조회수 높은 순 */
+const BLOG_SORT = { views: "조회순", latest: "최신순", no: "호수순" };
 const THREAD_STATUS = { posted: "게시 완료", drafting: "작성 중", hold: "보류" };
 const CAMP_STATUS = { pending: "미제출", doing: "진행 중", submitted: "제출 완료" };
 
@@ -117,6 +119,7 @@ const state = {
   data: null,
   ownerFilter: "all",
   blogFilter: "all",
+  blogSort: "views",
   say: "boss",
   audience: savedAudience(),
   replyTo: null,
@@ -455,6 +458,23 @@ function blogArr() {
     .sort((a, b2) => a.no - b2.no);
 }
 
+function fmtViews(n) {
+  return Number(n || 0).toLocaleString("ko-KR");
+}
+
+/* 목록 정렬: 기본은 누적 조회수 내림차순, 동률이면 최신 호수 우선. */
+function blogSorted(list) {
+  const arr = [...list];
+  if (state.blogSort === "latest") {
+    arr.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || b.no - a.no);
+  } else if (state.blogSort === "no") {
+    arr.sort((a, b) => a.no - b.no);
+  } else {
+    arr.sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0) || b.no - a.no);
+  }
+  return arr;
+}
+
 /* 글의 공개 주소 — url 필드가 없으면 logNo로 조립합니다. */
 function blogUrl(b) {
   if (!b) return "";
@@ -467,11 +487,12 @@ function renderBlog() {
   const all = blogArr();
   const pub = all.filter(b => b.status === "published").length;
   const draft = all.filter(b => b.status === "draft").length;
-  $("#blogSummary").textContent = `${all.length}편 · 발행 ${pub} · 임시저장 ${draft}`;
+  const totalViews = all.reduce((s, b) => s + (Number(b.views) || 0), 0);
+  $("#blogSummary").textContent = `${all.length}편 · 발행 ${pub} · 임시저장 ${draft} · 누적 조회 ${fmtViews(totalViews)}`;
   const cnt = $("#blogCount");
   if (cnt) cnt.textContent = all.length;
 
-  const list = state.blogFilter === "all" ? all : all.filter(b => b.status === state.blogFilter);
+  const list = blogSorted(state.blogFilter === "all" ? all : all.filter(b => b.status === state.blogFilter));
   const box = $("#blogList");
 
   if (!list.length) {
@@ -488,10 +509,14 @@ function renderBlog() {
     const title = url
       ? `<a class="blog-title" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="네이버 블로그에서 열기">${esc(b.title)}</a>`
       : `<span class="blog-title" title="아직 공개 글이 없습니다 · 눌러서 상세 보기">${esc(b.title)}</span>`;
+    const views = b.status === "published"
+      ? `<span class="blog-views" title="네이버 블로그 누적 조회수 ${fmtViews(b.views)}회">👁 ${fmtViews(b.views)}</span>`
+      : `<span class="blog-views is-off" title="공개되지 않은 글이라 조회수가 없습니다">${b.status === "hidden" ? "비공개" : "미발행"}</span>`;
     return `
       <div class="blog-row ${cls}" data-key="${esc(b.key)}" data-url="${esc(url)}"${url ? ' title="누르면 네이버 블로그 글이 새 탭에서 열립니다"' : ""}>
         <span class="blog-no">${b.no}</span>
         ${title}
+        ${views}
         <span class="blog-date">${esc(date)}</span>
         <button class="mini-btn blog-memo" data-act="blog-memo" data-key="${esc(b.key)}" type="button" aria-label="${b.no}호 메모·상태 열기" title="메모 · 상태 보기">${url ? "메모" : "상세"}</button>
         <select data-act="blog-status" data-key="${esc(b.key)}" aria-label="${b.no}호 상태">${opts}</select>
@@ -504,6 +529,14 @@ $("#blogFilters").addEventListener("click", e => {
   if (!btn) return;
   state.blogFilter = btn.dataset.blog;
   $$("#blogFilters .chip").forEach(c => c.classList.toggle("is-on", c === btn));
+  renderBlog();
+});
+
+$("#blogSort").addEventListener("click", e => {
+  const btn = e.target.closest("[data-sort]");
+  if (!btn) return;
+  state.blogSort = btn.dataset.sort;
+  $$("#blogSort .chip").forEach(c => c.classList.toggle("is-on", c === btn));
   renderBlog();
 });
 
@@ -2450,6 +2483,7 @@ function openBlogSheet(key) {
     </div>
     ${link}
     <div class="sheet-row"><span class="k">발행일</span><span class="v">${esc(b.date || "-")}</span></div>
+    <div class="sheet-row"><span class="k">누적 조회수</span><span class="v">${b.status === "published" ? `👁 ${fmtViews(b.views)}회` : "공개 글 아님"}</span></div>
     <div class="sheet-row"><span class="k">현재 상태</span><span class="v">${BLOG_STATUS[b.status] || b.status}</span></div>
     <div class="sheet-row"><span class="k">최근 갱신</span><span class="v">${tsFull(b.updatedAt)}</span></div>
     <div class="sheet-sep"></div>
